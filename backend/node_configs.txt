@@ -1,0 +1,3 @@
+node_0:"D:\prj_py\dask-demo\data.csv"
+node_4:"D:\prj_py\dask-demo\data2.csv"
+node_5:"D:\prj_py\dask-demo\data3.csv"
