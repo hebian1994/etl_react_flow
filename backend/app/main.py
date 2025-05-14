@@ -48,8 +48,9 @@ def get_flow(flow_id):
 @app.route('/save_config', methods=['POST'])
 def save_config():
     data = request.json
+    print(data)
     with open(CONFIG_FILE, 'a') as f:
-        f.write(f"{data['nodeId']}:{data['config']['path']}\n")
+        f.write(f"{data['node_id']}:{data['config']['path']}:{data['config']['name']}\n")
     return jsonify({"status": "saved"}), 200
 
 
