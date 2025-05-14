@@ -1,3 +1,1 @@
-node_0:"D:\prj_py\dask-demo\data.csv"
-node_4:"D:\prj_py\dask-demo\data2.csv"
-node_5:"D:\prj_py\dask-demo\data3.csv"
+df290bcd-00e0-44ba-8b76-7e96b6c4bc7f:"D:\prj_py\demo-dask\test.csv"
