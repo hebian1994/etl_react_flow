@@ -14,9 +14,18 @@ CONFIG_FILE = 'node_configs.txt'
 def save_flow():
     data = request.json
     flow_id = data['flow_id']
-    with open('flows.txt', 'a') as f:
-        f.write(json.dumps(data) + '\n')
-    return jsonify({'status': 'ok'})
+
+    # read from flows.txt, if the flow_id is already in the file, update the flow
+    with open('flows.txt', 'r') as f:
+        for line in f:
+            if flow_id in line:
+                with open('flows.txt', 'w') as f:
+                    f.write(json.dumps(data) + '\n')
+                return jsonify({'status': 'ok'})
+    # if the flow_id is not in the file, append the flow
+            else:
+                with open('flows.txt', 'a') as f:
+                    f.write(json.dumps(data) + '\n')
 
 
 @app.route('/get_flows')
@@ -50,7 +59,8 @@ def save_config():
     data = request.json
     print(data)
     with open(CONFIG_FILE, 'a') as f:
-        f.write(f"{data['node_id']}:{data['config']['path']}:{data['config']['name']}\n")
+        f.write(
+            f"{data['node_id']}:{data['config']['path']}:{data['config']['name']}\n")
     return jsonify({"status": "saved"}), 200
 
 
@@ -104,6 +114,30 @@ def save_node():
     with open('nodes.txt', 'a') as f:
         f.write(f"{data['id']} | {data['type']} | {data['created_at']}\n")
     return jsonify({'status': 'saved'})
+
+
+@app.route('/compute_node', methods=['POST'])
+def compute_node():
+    data = request.json
+    print(f"{data['node_id']}")
+    # read from nodes.txt
+    with open('nodes.txt', 'r') as f:
+        for line in f:
+            if data['node_id'] in line:
+                print(line)
+                # split by | and get the second element named component name
+                component_name = line.split('|')[1].strip()
+                # if component_name is Data Viewer, read from dependencies.txt
+                if component_name == 'Data Viewer':
+                    # use pandas to read the txt file , the col name are source and target
+                    df = pd.read_csv(DEPENDENCY_FILE, sep=' -> ', header=None,
+                                     names=['source', 'target'], engine='python')
+                    df['source'] = df['source'].str.strip()
+                    df['target'] = df['target'].str.strip()
+                    df = df[df['target'] == data['node_id']]
+                    print(df)
+
+    return jsonify({'status': 'ok'})
 
 
 if __name__ == '__main__':
