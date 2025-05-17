@@ -1,3 +1,6 @@
+from DB import DATABASE_FILE
+import sqlite3
+import json
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -18,7 +21,7 @@ class PandasBackend(ETLBackend):
     def read_csv(self, _, params):
         print(params)
         print(_)
-        df = pd.read_csv(params["path"])
+        df = pd.read_csv(params["path"].strip('"'))
         df["name"] = df["name"]
         df["age"] = df["age"].astype(int)
         df["country"] = df["country"]
@@ -49,9 +52,11 @@ class ETLOperator:
         self.backend = backend
         self.dispatch = {
             "read_csv": self.backend.read_csv,
+            "file_input": self.backend.read_csv,
             "filter": self.backend.filter,
             "aggregate": self.backend.aggregate,
-            "output": self.backend.output
+            "output": self.backend.output,
+            "data_viewer": self.backend.output,
         }
 
     def run(self, op_name, input_df, params):
@@ -123,12 +128,85 @@ flowchart_data = {
     ]
 }
 
-# ========== 执行 ==========
-res = execute_dag(
-    nodes=flowchart_data["nodes"],
-    edges=flowchart_data["edges"],
-    backend_name="pandas"  # 👈 可以切换为 "polars"
-)
+# # ========== 执行 ==========
+# res = execute_dag(
+#     nodes=flowchart_data["nodes"],
+#     edges=flowchart_data["edges"],
+#     backend_name="pandas"  # 👈 可以切换为 "polars"
+# )
 
-print("最终结果：")
-print(res["4"])
+# print("最终结果：")
+# print(res["4"])
+
+
+def build_flowchart_data(flow_id, flows_file):
+    # 加载 flows.txt（仍然保留为文件，因为没有迁移到 DB）
+    print(f"flow_id: {flow_id}")
+    with open(flows_file, 'r', encoding='utf-8') as f:
+        flows = [json.loads(line) for line in f if line.strip()]
+
+    print(f"flows: {flows}")
+
+    for f in flows:
+        print(f"f: {f}")
+        print(f"f['flow_id']: {f['flow_id']}")
+
+    target_flow = next((f for f in flows if f["flow_id"] == flow_id), None)
+    if not target_flow:
+        raise ValueError(f"Flow ID {flow_id} not found.")
+
+    # 从 SQLite 中加载 nodes 表数据（node_type_map）
+    node_type_map = {}
+    conn = sqlite3.connect(DATABASE_FILE)
+    c = conn.cursor()
+
+    c.execute("SELECT id, type FROM nodes")
+    for row in c.fetchall():
+        node_id, node_type = row
+        node_type_map[node_id] = node_type.lower().replace(" ", "_")
+
+    # 从 SQLite 中加载 node_configs 表数据（node_config_map）
+    node_config_map = {}
+    c.execute(
+        "SELECT node_id, config_param FROM node_configs WHERE config_name = 'path'")
+    for row in c.fetchall():
+        node_id, path = row
+        node_config_map[node_id] = path
+
+    conn.close()
+
+    print("node_config_map", node_config_map)
+
+    # 构建节点
+    nodes = []
+    for node in target_flow['nodes']:
+        node_id = node['id']
+        node_type = node_type_map.get(node_id, "unknown")
+        params = {}
+        if node_type == "file_input":
+            path = node_config_map.get(node_id, "")
+            params = {"path": path}
+        nodes.append({
+            "id": node_id,
+            "type": node_type,
+            "params": params
+        })
+
+    print("nodes", nodes)
+
+    # 构建边
+    edges = []
+    for edge in target_flow['edges']:
+        edges.append({
+            "source": edge['source'],
+            "target": edge['target']
+        })
+
+    return {"nodes": nodes, "edges": edges}
+
+
+# flowchart_data = build_flowchart_data(
+#     flow_id="43cd13c7-25b3-42f3-8d89-6ea353ac5daa",
+#     flows_file="flows.txt"
+# )
+# print(flowchart_data)
