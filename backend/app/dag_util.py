@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 class ETLBackend:
     def read_csv(self, params): raise NotImplementedError
     def filter(self, df, params): raise NotImplementedError
+    def left_join(self, df1, df2, params): raise NotImplementedError
     def aggregate(self, df, params): raise NotImplementedError
     def output(self, df, params): return df  # 默认直接返回
 
@@ -21,15 +22,55 @@ class PandasBackend(ETLBackend):
     def read_csv(self, _, params):
         print(params)
         print(_)
-        df = pd.read_csv(params["path"].strip('"'))
-        df["name"] = df["name"]
-        df["age"] = df["age"].astype(int)
-        df["country"] = df["country"]
-        df["salary"] = df["salary"].astype(float)
+        # 获取文件第一行和第二行的内容，然后根据逗号切割得到字段名和数据类型,注意去掉结尾的换行符
+        with open(params["path"].strip('"'), 'r', encoding='utf-8') as f:
+            first_line = f.readline().strip()
+            second_line = f.readline().strip()
+        print(f"first_line: {first_line}")
+        print(f"second_line: {second_line}")
+        # 根据逗号切割得到字段名和数据类型
+        field_names = first_line.split(',')
+        field_types = second_line.split(',')
+
+        # 文件的第一行为表头，第二行为数据类型，第三行开始为数据
+        # 需要根据第二行的指定数据类型读取
+        # 需要指定列名
+        df = pd.read_csv(params["path"].strip(
+            '"'), header=2, dtype=dict(zip(field_names, field_types)), names=field_names)
+
         return df
 
     def filter(self, df, params):
-        return df[df[params["col"]] > params["value"]]
+        print(f"filter params: {params}")
+        if params["condition"] == "":
+            print("condition is empty")
+            return df
+        else:
+            return df.query(params["condition"])
+
+    def left_join(self, df1, df2, params):
+        print(f"left_join params: {params}")
+        if 'left_join_on' not in params:
+            print("left_join_on is empty")
+            return df1
+        else:
+            print(f"left_join_on: {params['left_join_on']}")
+            # will get join condition as "name=name and age=age"
+            # will get join condition as "name=name and age=age"
+            join_condition = params["left_join_on"].split(" and ")
+            # can use left_on and right_on to specify the join condition
+            left_on_arr = []
+            right_on_arr = []
+            for condition in join_condition:
+                left_on, right_on = condition.split("=")
+                left_on_arr.append(left_on)
+                right_on_arr.append(right_on)
+            df1 = df1.merge(df2, left_on=left_on_arr,
+                            right_on=right_on_arr, how="left")
+
+            df1 = df1.fillna("")
+
+            return df1
 
     def aggregate(self, df, params):
         return df.groupby(params["by"]).agg({"age": "mean"}).reset_index(drop=False)
@@ -52,15 +93,19 @@ class ETLOperator:
         self.backend = backend
         self.dispatch = {
             "read_csv": self.backend.read_csv,
-            "file_input": self.backend.read_csv,
-            "filter": self.backend.filter,
+            "File Input": self.backend.read_csv,
+            "Filter": self.backend.filter,
+            "Left Join": self.backend.left_join,
             "aggregate": self.backend.aggregate,
             "output": self.backend.output,
-            "data_viewer": self.backend.output,
+            "Data Viewer": self.backend.output,
         }
 
     def run(self, op_name, input_df, params):
         return self.dispatch[op_name](input_df, params)
+
+    def run_left_join(self, op_name, input_df1, input_df2, params):
+        return self.dispatch[op_name](input_df1, input_df2, params)
 
 # ========== DAG 执行器 ==========
 
@@ -92,7 +137,13 @@ def execute_dag(nodes, edges, backend_name="pandas"):
         preds = list(G.predecessors(node_id))
         inputs = [results[p] for p in preds] if preds else [None]
 
-        result = operator.run(op, inputs[0] if inputs else None, params)
+        print(f"inputs: {inputs}")
+        # 可能不是只有inputs[0]，而是inputs[0]和inputs[1]
+        if len(inputs) == 2:
+            # handle left join
+            result = operator.run_left_join(op, inputs[0], inputs[1], params)
+        else:
+            result = operator.run(op, inputs[0], params)
         results[node_id] = result
 
     return results
@@ -109,34 +160,6 @@ def draw_dag(G):
     plt.title("ETL 执行 DAG 图")
     plt.tight_layout()
     plt.show()
-
-
-# ========== 测试数据结构 ==========
-flowchart_data = {
-    "nodes": [
-        {"id": "1", "type": "read_csv", "params": {"path": "file.csv"}},
-        {"id": "2", "type": "filter", "params": {
-            "col": "age", "op": ">", "value": 30}},
-        {"id": "3", "type": "aggregate", "params": {
-            "by": "country", "agg": "mean"}},
-        {"id": "4", "type": "output", "params": {}}
-    ],
-    "edges": [
-        {"source": "1", "target": "2"},
-        {"source": "2", "target": "3"},
-        {"source": "3", "target": "4"}
-    ]
-}
-
-# # ========== 执行 ==========
-# res = execute_dag(
-#     nodes=flowchart_data["nodes"],
-#     edges=flowchart_data["edges"],
-#     backend_name="pandas"  # 👈 可以切换为 "polars"
-# )
-
-# print("最终结果：")
-# print(res["4"])
 
 
 def build_flowchart_data(flow_id, flows_file):
@@ -163,15 +186,20 @@ def build_flowchart_data(flow_id, flows_file):
     c.execute("SELECT id, type FROM nodes")
     for row in c.fetchall():
         node_id, node_type = row
-        node_type_map[node_id] = node_type.lower().replace(" ", "_")
+        node_type_map[node_id] = node_type
 
     # 从 SQLite 中加载 node_configs 表数据（node_config_map）
     node_config_map = {}
     c.execute(
-        "SELECT node_id, config_param FROM node_configs WHERE config_name = 'path'")
+        "SELECT node_id, config_name, config_param FROM node_configs")
     for row in c.fetchall():
-        node_id, path = row
-        node_config_map[node_id] = path
+        node_id, config_name, config_param = row
+        print(
+            f"node_id: {node_id}, config_name: {config_name}, config_param: {config_param}")
+        if node_id not in node_config_map:
+            node_config_map[node_id] = []
+        print(f'will append {config_name}: {config_param} to {node_id}')
+        node_config_map[node_id].append({config_name: config_param})
 
     conn.close()
 
@@ -183,9 +211,18 @@ def build_flowchart_data(flow_id, flows_file):
         node_id = node['id']
         node_type = node_type_map.get(node_id, "unknown")
         params = {}
-        if node_type == "file_input":
-            path = node_config_map.get(node_id, "")
-            params = {"path": path}
+        if node_type == "File Input":
+            config_param_arr = node_config_map.get(node_id, [])
+            for config_param_dict in config_param_arr:
+                params = {"path": config_param_dict['path']}
+        if node_type == "Filter":
+            config_param_arr = node_config_map.get(node_id, [])
+            for config_param_dict in config_param_arr:
+                params = {"condition": config_param_dict['condition']}
+        if node_type == "Left Join":
+            config_param_arr = node_config_map.get(node_id, [])
+            for config_param_dict in config_param_arr:
+                params = {"left_join_on": config_param_dict['left_join_on']}
         nodes.append({
             "id": node_id,
             "type": node_type,
@@ -210,3 +247,18 @@ def build_flowchart_data(flow_id, flows_file):
 #     flows_file="flows.txt"
 # )
 # print(flowchart_data)
+
+# ========== 测试数据结构 ==========
+flowchart_data = build_flowchart_data(
+    flow_id='2789aec8-d8c0-40c5-bbcb-1023d15a81c1',
+    flows_file="flows.txt"
+)
+
+res = execute_dag(
+    nodes=flowchart_data["nodes"],
+    edges=flowchart_data["edges"],
+    backend_name="pandas"  # 👈 可以切换为 "polars"
+)
+
+# print("最终结果：")
+print(res)

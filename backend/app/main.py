@@ -165,9 +165,41 @@ def get_node_config():
             return jsonify({
                 "path": path
             })
-        if node_type == 'Data Viewer':
+        elif node_type == 'Data Viewer':
             return jsonify({
 
+            })
+        elif node_type == 'Filter':
+            c.execute("SELECT config_param FROM node_configs WHERE node_id = ? AND config_name = 'condition'",
+                      (node_id,))
+            config_row = c.fetchone()
+            if not config_row:
+                return jsonify({
+                    "condition": ""
+                })
+            condition = config_row[0]
+            return jsonify({
+                "condition": condition
+            })
+        elif node_type == 'Left Join':
+            c.execute("SELECT config_param FROM node_configs WHERE node_id = ? AND config_name = 'left_join_on'",
+                      (node_id,))
+            config_row = c.fetchone()
+            if not config_row:
+                return jsonify({
+                    "left_join_on": ""
+                })
+            left_join_on = config_row[0]
+            return jsonify({
+                "left_join_on": left_join_on
+            })
+        elif node_type == 'Aggregate':
+            return jsonify({
+
+            })
+        else:
+            return jsonify({
+                "error": "Unsupported node type"
             })
 
     finally:
@@ -196,10 +228,11 @@ def preview_data():
 
     print("flowchart_data", flowchart_data)
     print("res", res)
-    print("res", res[data['node_id']])
-
-    # 获取res[data['node_id']]的head(5)
-    res_data = res[data['node_id']].head(5).to_dict(orient='records')
+    if data['node_id'] in res:
+        res_data = res[data['node_id']].head(5).to_dict(orient='records')
+    else:
+        print(f"{data['node_id']} is not in res")
+        res_data = []
 
     # return jsonify({'status': 'ok'})
     return jsonify(res_data)

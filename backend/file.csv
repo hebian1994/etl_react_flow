@@ -1,4 +1,5 @@
 name,age,country,salary
+str,int,str,float
 Alice,34,USA,70000
 Bob,28,Canada,50000
 Charlie,45,USA,120000
