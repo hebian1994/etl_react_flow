@@ -1,0 +1,59 @@
+.etl-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+}
+
+.draggable-node {
+  padding: 8px 12px;
+  background: #007bff;
+  color: white;
+  border-radius: 5px;
+  cursor: grab;
+  user-select: none;
+}
+
+.flow-area {
+  flex: 1;
+  background: #fafafa;
+}
+
+.modal {
+  position: fixed;
+  top: 20%;
+  left: 35%;
+  background: white;
+  border: 1px solid #ccc;
+  padding: 20px;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.modal-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.context-menu {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ccc;
+  z-index: 1000;
+  padding: 6px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.context-menu div:hover {
+  background-color: #f0f0f0;
+}

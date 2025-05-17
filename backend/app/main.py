@@ -73,53 +73,12 @@ def save_config():
     conn = sqlite3.connect(DATABASE_FILE)
     c = conn.cursor()
 
-    # 提取所有的 config_name
-    config_names = list(config.keys())
-
-    # 一次性查询当前 flow_id + node_id + config_name 的所有记录
-    query = '''
-        SELECT config_name FROM node_configs
-        WHERE flow_id = ? AND node_id = ?
-        AND config_name IN ({})
-    '''.format(','.join('?' * len(config_names)))
-
-    params = [flow_id, node_id] + config_names
-    c.execute(query, params)
-    existing_configs = set(row[0] for row in c.fetchall())
-
-    # 准备批量插入和更新的数据
-    to_insert = []
-    to_update = []
-
-    for config_name, config_param in config.items():
-        if isinstance(config_param, str) and config_param.startswith('"') and config_param.endswith('"'):
-            config_param = config_param[1:-1]
-
-        result_list.append({
-            "flow_id": flow_id,
-            "node_id": node_id,
-            "config_name": config_name,
-            "config_param": config_param
-        })
-
-        if config_name in existing_configs:
-            to_update.append((config_param, flow_id, node_id, config_name))
-        else:
-            to_insert.append((flow_id, node_id, config_name, config_param))
-
-    # 批量更新
-    if to_update:
-        c.executemany('''
-            UPDATE node_configs SET config_param = ?
-            WHERE flow_id = ? AND node_id = ? AND config_name = ?
-        ''', to_update)
-
-    # 批量插入
-    if to_insert:
-        c.executemany('''
-            INSERT INTO node_configs (flow_id, node_id, config_name, config_param)
-            VALUES (?, ?, ?, ?)
-        ''', to_insert)
+    # 下面都不需要写那么复杂了，直接删除node_id对应的所有记录，然后将最新送来的存进去就行了
+    c.execute('DELETE FROM node_configs WHERE node_id = ?', (node_id,))
+    c.executemany('''
+        INSERT INTO node_configs (flow_id, node_id, config_name, config_param)
+        VALUES (?, ?, ?, ?)
+    ''', [(flow_id, node_id, config_name, config_param) for config_name, config_param in config.items()])
 
     conn.commit()
     conn.close()
@@ -149,58 +108,21 @@ def get_node_config():
         print(f"node_type: {node_type}")
 
         # 如果不是 File Input 类型，直接返回
-        if node_type == 'File Input':
-            # 查询配置路径（来自 configs 表）
-            c.execute("""
-                SELECT config_param FROM node_configs 
-                WHERE node_id = ? AND config_name = 'path'
-            """, (node_id,))
-            config_row = c.fetchone()
-            if not config_row:
-                return jsonify({
-                })
+        # 查询配置路径（来自 configs 表）
+        # 如果 node_id 对应的记录有多个，则返回多个
+        c.execute("""
+            SELECT config_name, config_param FROM node_configs 
+            WHERE node_id = ?
+        """, (node_id,))
+        config_rows = c.fetchall()
+        if not config_rows:
+            return jsonify({
+            })
 
-            path = config_row[0]
+        # 将得到的 config_rows 转换为 {config_name: config_param} 的格式
+        config_dict = {row[0]: row[1] for row in config_rows}
 
-            return jsonify({
-                "path": path
-            })
-        elif node_type == 'Data Viewer':
-            return jsonify({
-
-            })
-        elif node_type == 'Filter':
-            c.execute("SELECT config_param FROM node_configs WHERE node_id = ? AND config_name = 'condition'",
-                      (node_id,))
-            config_row = c.fetchone()
-            if not config_row:
-                return jsonify({
-                    "condition": ""
-                })
-            condition = config_row[0]
-            return jsonify({
-                "condition": condition
-            })
-        elif node_type == 'Left Join':
-            c.execute("SELECT config_param FROM node_configs WHERE node_id = ? AND config_name = 'left_join_on'",
-                      (node_id,))
-            config_row = c.fetchone()
-            if not config_row:
-                return jsonify({
-                    "left_join_on": ""
-                })
-            left_join_on = config_row[0]
-            return jsonify({
-                "left_join_on": left_join_on
-            })
-        elif node_type == 'Aggregate':
-            return jsonify({
-
-            })
-        else:
-            return jsonify({
-                "error": "Unsupported node type"
-            })
+        return jsonify(config_dict)
 
     finally:
         conn.close()

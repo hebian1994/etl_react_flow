@@ -214,7 +214,8 @@ def build_flowchart_data(flow_id, flows_file):
         if node_type == "File Input":
             config_param_arr = node_config_map.get(node_id, [])
             for config_param_dict in config_param_arr:
-                params = {"path": config_param_dict['path']}
+                if 'path' in config_param_dict:
+                    params = {"path": config_param_dict['path']}
         if node_type == "Filter":
             config_param_arr = node_config_map.get(node_id, [])
             for config_param_dict in config_param_arr:

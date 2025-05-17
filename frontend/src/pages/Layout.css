@@ -1,0 +1,73 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+  
+  .container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  
+  /* 顶部框1 */
+  .box1 {
+    height: 60px;
+    border: 2px solid red;
+    background-color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  .top-buttons button {
+    margin: 0 10px;
+  }
+  
+  /* 中部区域（左右结构） */
+  .content-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  
+  /* 左侧框2 */
+  .box2 {
+    width: 400px;
+    border: 2px solid red;
+    background-color: white;
+    height: 100%;
+    flex-shrink: 0;
+    text-align: center;
+    padding-top: 20px;
+  }
+  
+  /* 主内容容器 */
+  .main-content {
+    flex: 1;
+    display: flex;
+    height: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  
+  /* 框3 */
+  .box3 {
+    flex: 1;
+    border: 2px solid red;
+    background-color: white;
+    text-align: center;
+    padding-top: 10px;
+  }
+  
+  /* 底部框4 */
+  .box4 {
+    /* height: 60px; */
+    border: 2px solid red;
+    background-color: white;
+    text-align: center;
+    line-height: 60px;
+    flex-shrink: 0;
+  }
+  
