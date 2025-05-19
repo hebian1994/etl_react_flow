@@ -168,13 +168,16 @@ def preview_data():
     res = execute_dag(
         nodes=flowchart_data["nodes"],
         edges=flowchart_data["edges"],
-        backend_name="pandas"  # 👈 可以切换为 "polars"
+        backend_name="polars",
+        target_node_id=data['node_id']
     )
 
     print("flowchart_data", flowchart_data)
     print("res", res)
     if data['node_id'] in res:
-        res_data = res[data['node_id']].head(5).to_dict(orient='records')
+        # polars 的 head 方法返回的是一个 DataFrame
+        # 需要转换为字典列表
+        res_data = res[data['node_id']].head(5).to_dicts()
     else:
         print(f"{data['node_id']} is not in res")
         res_data = []
@@ -199,7 +202,7 @@ def compute_node():
     )
 
     # 获取res[data['node_id']]的head(5)
-    res_data = res[data['node_id']].head(5).to_dict(orient='records')
+    res_data = res[data['node_id']].head(5).to_dicts()
 
     # return jsonify({'status': 'ok'})
     return jsonify(res_data)
