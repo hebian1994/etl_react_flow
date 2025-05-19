@@ -21,6 +21,7 @@ import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import PreviewBox4 from './PreviewBox4';
+import TopToolbar from './TopToolbar';
 
 
 const nodeTypes = ['File Input', 'Data Viewer', 'Filter', 'Aggregate', 'Left Join'];
@@ -222,38 +223,13 @@ const Layout: React.FC = () => {
     return (
         <div className="container">
             {/* 顶部栏 - 框1 */}
-            <div className="box1">
-                <div className="top-buttons">
-                    <button onClick={() => setShowBox2(prev => !prev)}>切换左侧框（框2）</button>
-                    <button onClick={() => setShowBox4(prev => !prev)}>切换底部框（框4）</button>
-                    {/* 顶部工具栏 */}
-                    <div style={{
-                        width: '100%', height: '20%',
-                        padding: '10px',
-                        // borderBottom: '1px solid #ddd',
-                        background: '#f0f0f0'
-                    }}>
-                        {nodeTypes.map((type) => (
-                            <div
-                                key={type}
-                                onDragStart={(e) => e.dataTransfer.setData('application/reactflow', type)}
-                                draggable
-                                style={{
-                                    display: 'inline-block',
-                                    marginRight: 10,
-                                    padding: '6px 12px',
-                                    background: '#fff',
-                                    border: '1px solid #ccc',
-                                    cursor: 'move',
-                                }}
-                            >
-                                {type}
-                            </div>
-                        ))}
-                        <button onClick={handleSave} style={{ marginLeft: 20 }}>💾 保存flow</button>
-                    </div>
-                </div>
-            </div>
+            <TopToolbar
+                nodeTypes={nodeTypes}
+                setShowBox2={setShowBox2}
+                setShowBox4={setShowBox4}
+                handleSave={handleSave}
+            />
+
 
             <div className="content-area">
                 {/* 框2 - 左侧边栏 */}

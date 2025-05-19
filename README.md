@@ -10,5 +10,5 @@ FLOW_DESIGN页面添加一个SAVE按钮，点击按钮，并且将FLOW_ID和当�
 
 FLOW LIST列表页面打开后，从flows.txt中读取简介信息显示到列表，选择一条记录点击末尾的编辑按钮，从后端查询到这个flow的完整信息，渲染到画布中。
 
-TODO
 Filter组件
+

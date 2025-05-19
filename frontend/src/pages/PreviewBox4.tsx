@@ -1,4 +1,16 @@
 import React from 'react';
+import {
+    Paper,
+    Typography,
+    Button,
+    Table,
+    TableHead,
+    TableRow,
+    TableCell,
+    TableBody,
+    Box,
+    Stack
+} from '@mui/material';
 
 type PreviewBox4Props = {
     show: boolean;
@@ -10,46 +22,55 @@ const PreviewBox4: React.FC<PreviewBox4Props> = ({ show, previewData, setPreview
     if (!show) return null;
 
     return (
-        <div className="box4">
-            {previewData && (
-                <div>
-                    <div>
-                        <h3>数据预览1</h3>
-                        <button onClick={() => setPreviewData([])}>
-                            关闭
-                        </button>
-                        <div className="p-4 overflow-auto">
-                            {previewData.length === 0 ? (
-                                <p className="text-gray-500">暂无数据</p>
-                            ) : (
-                                <table className="text-sm w-full border">
-                                    <thead className="bg-white">
-                                        <tr>
-                                            {Object.keys(previewData[0]).map((col) => (
-                                                <th key={col} className="text-left border-b p-1 font-medium">
-                                                    {col}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {previewData.map((row, idx) => (
-                                            <tr key={idx} className="hover:bg-gray-50">
-                                                {Object.values(row).map((val, i) => (
-                                                    <td key={i} className="border-b p-1">
-                                                        {String(val)}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                    </div>
-                </div>
+        <Paper
+            elevation={3}
+            sx={{
+                p: 2,
+                position: 'relative',
+                borderTop: '1px solid #ddd',
+                maxHeight: '300px',
+                overflow: 'auto',
+                backgroundColor: '#fafafa'
+            }}
+        >
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6" component="div">
+                    数据预览
+                </Typography>
+                <Button variant="outlined" color="secondary" onClick={() => setPreviewData([])}>
+                    关闭
+                </Button>
+            </Stack>
+
+            {previewData && previewData.length > 0 ? (
+                <Box>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow>
+                                {Object.keys(previewData[0]).map((col) => (
+                                    <TableCell key={col} sx={{ fontWeight: 'bold' }}>
+                                        {col}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {previewData.map((row, idx) => (
+                                <TableRow key={idx} hover>
+                                    {Object.values(row).map((val, i) => (
+                                        <TableCell key={i}>{String(val)}</TableCell>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Box>
+            ) : (
+                <Typography variant="body2" color="text.secondary">
+                    暂无数据
+                </Typography>
             )}
-        </div>
+        </Paper>
     );
 };
 
