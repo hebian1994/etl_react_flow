@@ -47,6 +47,8 @@ const Designer: React.FC = () => {
 
     // 加载流程初始数据
     useEffect(() => {
+        setShowBox2(false);
+        setShowBox4(false);
         console.log(process.env.NODE_ENV)
         const fetchFlow = async () => {
             const res = await axios.get(`${API_BASE}/get_flow/${flowId}`);
@@ -81,6 +83,7 @@ const Designer: React.FC = () => {
         console.log(res.data);
 
         if (res.data.length > 0) {
+            setShowBox4(true);
             setPreviewData(res.data);
         } else {
             setPreviewData([]);

@@ -19,13 +19,13 @@ CORS(app)
 @app.route('/save_flow', methods=['POST'])
 def save_flow():
     data = request.json
-    flow = Flow.query.get(data['flow_id'])
-    flow_json = json.dumps(data)
-    if flow:
-        flow.flow_data = flow_json
-    else:
-        flow = Flow(flow_id=data['flow_id'], flow_data=flow_json)
-        with SessionLocal() as db:
+    with SessionLocal() as db:
+        flow = db.query(Flow).filter(Flow.flow_id == data['flow_id']).first()
+        flow_json = json.dumps(data)
+        if flow:
+            flow.flow_data = flow_json
+        else:
+            flow = Flow(flow_id=data['flow_id'], flow_data=flow_json)
             db.add(flow)
     return jsonify({'status': 'ok'})
 
@@ -34,10 +34,11 @@ def save_flow():
 
 @app.route('/get_flows')
 def get_flows():
-    flows = Flow.query.all()
-    parsed_flows = [json.loads(flow.flow_data) for flow in flows]
-    simple_flows = [{"id": f["flow_id"], "nodeCount": len(
-        f.get("nodes", []))} for f in parsed_flows]
+    with SessionLocal() as db:
+        flows = db.query(Flow).all()
+        parsed_flows = [json.loads(flow.flow_data) for flow in flows]
+        simple_flows = [{"id": f["flow_id"], "nodeCount": len(
+            f.get("nodes", []))} for f in parsed_flows]
     return jsonify({'flows': simple_flows})
 
 # Get Single Flow
@@ -45,9 +46,10 @@ def get_flows():
 
 @app.route('/get_flow/<flow_id>')
 def get_flow(flow_id):
-    flow = Flow.query.get(flow_id)
-    if flow:
-        return jsonify(json.loads(flow.flow_data))
+    with SessionLocal() as db:
+        flow = db.query(Flow).filter(Flow.flow_id == flow_id).first()
+        if flow:
+            return jsonify(json.loads(flow.flow_data))
     return jsonify({"error": "not found"}), 200
 
 
