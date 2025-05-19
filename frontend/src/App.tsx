@@ -1,14 +1,12 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import FlowList from './pages/FlowList';
-import FlowDesign from './pages/FlowDesign';
-import Layout from './pages/Layout';
+import Designer from './pages/Designer/Designer';
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<FlowList />} />
-        {/* <Route path="/" element={<Layout />} /> */}
-        <Route path="/flow/:flowId" element={<Layout />} />
+        <Route path="/flow/:flowId" element={<Designer />} />
       </Routes>
     </Router>
   );

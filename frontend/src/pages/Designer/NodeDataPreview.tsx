@@ -12,13 +12,13 @@ import {
     Stack
 } from '@mui/material';
 
-type PreviewBox4Props = {
+type NodeDataPreviewProps = {
     show: boolean;
     previewData: Array<Record<string, any>> | null;
     setPreviewData: React.Dispatch<React.SetStateAction<Array<Record<string, any>> | null>>;
 };
 
-const PreviewBox4: React.FC<PreviewBox4Props> = ({ show, previewData, setPreviewData }) => {
+const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ show, previewData, setPreviewData }) => {
     if (!show) return null;
 
     return (
@@ -74,4 +74,4 @@ const PreviewBox4: React.FC<PreviewBox4Props> = ({ show, previewData, setPreview
     );
 };
 
-export default PreviewBox4;
+export default NodeDataPreview;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { AppBar, Toolbar, Button, Box, Paper, Chip, Stack, Tooltip } from '@mui/material';
+import { AppBar, Toolbar, Button, Paper, Stack, Tooltip } from '@mui/material';
 
 const TopToolbar = ({
     nodeTypes,

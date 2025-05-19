@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import './Layout.css';
-import FlowDesign from './FlowDesign';
+import './Designer.css';
 import ReactFlow, {
     addEdge,
     Background,
@@ -20,22 +19,17 @@ import 'reactflow/dist/style.css';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
-import PreviewBox4 from './PreviewBox4';
+import NodeDataPreview from './NodeDataPreview';
 import TopToolbar from './TopToolbar';
-import NodeConfigDrawer from './NodeConfigDrawer';
+import NodeConfig from './NodeConfig';
+const API_BASE = process.env.REACT_APP_API_BASE_URL;
+
 
 
 const nodeTypes = ['File Input', 'Data Viewer', 'Filter', 'Aggregate', 'Left Join'];
-const initialNodes = [
-    {
-        id: '1',
-        data: { label: '节点 1' },
-        position: { x: 50, y: 50 },
-    },
-];
-const initialEdges: any[] = [];
 
-const Layout: React.FC = () => {
+
+const Designer: React.FC = () => {
     const [showBox2, setShowBox2] = useState<boolean>(true);
     const [showBox4, setShowBox4] = useState<boolean>(true);
     const reactFlowWrapper = useRef(null);
@@ -48,15 +42,14 @@ const Layout: React.FC = () => {
     const [modalType, setModalType] = useState<'file' | 'viewer' | null>(null);
     const [configForm, setConfigForm] = useState<Record<string, any>>({});
     const [previewData, setPreviewData] = useState<any[] | null>(null);
-    const [newKey, setNewKey] = useState('');
-    const [newValue, setNewValue] = useState('');
 
 
 
     // 加载流程初始数据
     useEffect(() => {
+        console.log(process.env.NODE_ENV)
         const fetchFlow = async () => {
-            const res = await axios.get(`http://localhost:5000/get_flow/${flowId}`);
+            const res = await axios.get(`${API_BASE}/get_flow/${flowId}`);
             if (res.data.nodes) setNodes(res.data.nodes);
             if (res.data.edges) setEdges(res.data.edges);
         };
@@ -77,14 +70,14 @@ const Layout: React.FC = () => {
 
 
         // should send request to get config @app.route('/get_node_config', methods=['POST'])
-        const node_config = await axios.post('http://localhost:5000/get_node_config', payload);
+        const node_config = await axios.post(`${API_BASE}/get_node_config`, payload);
         console.log("node_config", node_config.data);
         setConfigForm(node_config.data || {});
         setShowBox2(true);
 
 
         // 如果有 dataPreview 数据，展示底部面板
-        const res = await axios.post('http://localhost:5000/preview_data', payload);
+        const res = await axios.post(`${API_BASE}/preview_data`, payload);
         console.log(res.data);
 
         if (res.data.length > 0) {
@@ -112,7 +105,7 @@ const Layout: React.FC = () => {
         console.log("save_config_payload", save_config_payload);
 
         try {
-            await axios.post('http://localhost:5000/save_config', save_config_payload);
+            await axios.post(`${API_BASE}/save_config`, save_config_payload);
             alert('配置保存成功');
 
             // 同时更新本地节点数据
@@ -157,7 +150,7 @@ const Layout: React.FC = () => {
             setNodes((nds) => [...nds, newNode]);
 
             // 通知后端新节点
-            await axios.post('http://localhost:5000/save_node', {
+            await axios.post(`${API_BASE}/save_node`, {
                 flow_id: flowId,
                 id,
                 type,
@@ -176,7 +169,7 @@ const Layout: React.FC = () => {
     const onConnect = useCallback(
         async (params: Edge | Connection) => {
             setEdges((eds) => addEdge(params, eds));
-            await axios.post('http://localhost:5000/add_dependency', {
+            await axios.post(`${API_BASE}/add_dependency`, {
                 flow_id: flowId,
                 source: params.source,
                 target: params.target,
@@ -192,7 +185,7 @@ const Layout: React.FC = () => {
         setNodes((nds) => nds.filter((n) => n.id !== contextMenu.nodeId));
         setEdges((eds) => eds.filter((e) => e.source !== contextMenu.nodeId && e.target !== contextMenu.nodeId));
 
-        await axios.post('http://localhost:5000/delete_node_dependencies', {
+        await axios.post(`${API_BASE}/delete_node_dependencies`, {
             flow_id: flowId,
             nodeId: contextMenu.nodeId,
         });
@@ -212,7 +205,7 @@ const Layout: React.FC = () => {
 
     // 保存流程
     const handleSave = async () => {
-        await axios.post('http://localhost:5000/save_flow', {
+        await axios.post(`${API_BASE}/save_flow`, {
             flow_id: flowId,
             nodes,
             edges,
@@ -237,17 +230,12 @@ const Layout: React.FC = () => {
                 {showBox2 && (
                     <div className="box2">
                         {selectedNode && (
-                            <NodeConfigDrawer
+                            <NodeConfig
                                 selectedNode={selectedNode}
                                 configForm={configForm}
-                                newKey={newKey}
-                                newValue={newValue}
                                 setSelectedNode={setSelectedNode}
                                 setShowBox2={setShowBox2}
-                                handleConfigChange={handleConfigChange}
                                 setConfigForm={setConfigForm}
-                                setNewKey={setNewKey}
-                                setNewValue={setNewValue}
                                 handleSaveConfig={handleSaveConfig}
                             />
                         )}
@@ -313,7 +301,7 @@ const Layout: React.FC = () => {
             </div>
 
             {/* 框4 - 底部固定栏 */}
-            <PreviewBox4
+            <NodeDataPreview
                 show={showBox4}
                 previewData={previewData}
                 setPreviewData={setPreviewData}
@@ -322,4 +310,4 @@ const Layout: React.FC = () => {
     );
 };
 
-export default Layout;
+export default Designer;
