@@ -162,68 +162,60 @@ def draw_dag(G):
     plt.show()
 
 
-def build_flowchart_data(flow_id, flows_file):
-    # 加载 flows.txt（仍然保留为文件，因为没有迁移到 DB）
+def build_flowchart_data(flow_id):
     print(f"flow_id: {flow_id}")
-    with open(flows_file, 'r', encoding='utf-8') as f:
-        flows = [json.loads(line) for line in f if line.strip()]
 
-    print(f"flows: {flows}")
-
-    for f in flows:
-        print(f"f: {f}")
-        print(f"f['flow_id']: {f['flow_id']}")
-
-    target_flow = next((f for f in flows if f["flow_id"] == flow_id), None)
-    if not target_flow:
-        raise ValueError(f"Flow ID {flow_id} not found.")
-
-    # 从 SQLite 中加载 nodes 表数据（node_type_map）
-    node_type_map = {}
+    # ① 从 SQLite 数据库中读取指定 flow_id 的 flow_data
     conn = sqlite3.connect(DATABASE_FILE)
     c = conn.cursor()
+    c.execute("SELECT flow_data FROM flows WHERE flow_id = ?", (flow_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        raise ValueError(f"Flow ID {flow_id} not found.")
 
+    target_flow = json.loads(row[0])
+
+    # ② 读取 nodes 表
+    node_type_map = {}
     c.execute("SELECT id, type FROM nodes")
     for row in c.fetchall():
         node_id, node_type = row
         node_type_map[node_id] = node_type
 
-    # 从 SQLite 中加载 node_configs 表数据（node_config_map）
+    # ③ 读取 node_configs 表
     node_config_map = {}
-    c.execute(
-        "SELECT node_id, config_name, config_param FROM node_configs")
+    c.execute("SELECT node_id, config_name, config_param FROM node_configs")
     for row in c.fetchall():
         node_id, config_name, config_param = row
-        print(
-            f"node_id: {node_id}, config_name: {config_name}, config_param: {config_param}")
         if node_id not in node_config_map:
             node_config_map[node_id] = []
-        print(f'will append {config_name}: {config_param} to {node_id}')
         node_config_map[node_id].append({config_name: config_param})
 
     conn.close()
 
-    print("node_config_map", node_config_map)
-
-    # 构建节点
+    # ④ 构建 nodes 数据
     nodes = []
     for node in target_flow['nodes']:
         node_id = node['id']
         node_type = node_type_map.get(node_id, "unknown")
         params = {}
+        config_param_arr = node_config_map.get(node_id, [])
+
         if node_type == "File Input":
-            config_param_arr = node_config_map.get(node_id, [])
             for config_param_dict in config_param_arr:
                 if 'path' in config_param_dict:
                     params = {"path": config_param_dict['path']}
-        if node_type == "Filter":
-            config_param_arr = node_config_map.get(node_id, [])
+        elif node_type == "Filter":
             for config_param_dict in config_param_arr:
-                params = {"condition": config_param_dict['condition']}
-        if node_type == "Left Join":
-            config_param_arr = node_config_map.get(node_id, [])
+                if 'condition' in config_param_dict:
+                    params = {"condition": config_param_dict['condition']}
+        elif node_type == "Left Join":
             for config_param_dict in config_param_arr:
-                params = {"left_join_on": config_param_dict['left_join_on']}
+                if 'left_join_on' in config_param_dict:
+                    params = {
+                        "left_join_on": config_param_dict['left_join_on']}
+
         nodes.append({
             "id": node_id,
             "type": node_type,
@@ -232,7 +224,7 @@ def build_flowchart_data(flow_id, flows_file):
 
     print("nodes", nodes)
 
-    # 构建边
+    # ⑤ 构建 edges 数据
     edges = []
     for edge in target_flow['edges']:
         edges.append({
@@ -242,24 +234,22 @@ def build_flowchart_data(flow_id, flows_file):
 
     return {"nodes": nodes, "edges": edges}
 
-
 # flowchart_data = build_flowchart_data(
 #     flow_id="43cd13c7-25b3-42f3-8d89-6ea353ac5daa",
-#     flows_file="flows.txt"
 # )
 # print(flowchart_data)
 
+
 # ========== 测试数据结构 ==========
-flowchart_data = build_flowchart_data(
-    flow_id='2789aec8-d8c0-40c5-bbcb-1023d15a81c1',
-    flows_file="flows.txt"
-)
+# flowchart_data = build_flowchart_data(
+#     flow_id='2789aec8-d8c0-40c5-bbcb-1023d15a81c1',
+# )
 
-res = execute_dag(
-    nodes=flowchart_data["nodes"],
-    edges=flowchart_data["edges"],
-    backend_name="pandas"  # 👈 可以切换为 "polars"
-)
+# res = execute_dag(
+#     nodes=flowchart_data["nodes"],
+#     edges=flowchart_data["edges"],
+#     backend_name="pandas"  # 👈 可以切换为 "polars"
+# )
 
-# print("最终结果：")
-print(res)
+# # print("最终结果：")
+# print(res)

@@ -9,55 +9,62 @@ from DB import DATABASE_FILE
 app = Flask(__name__)
 CORS(app)
 
-CONFIG_FILE = 'node_configs.txt'
-
 
 @app.route('/save_flow', methods=['POST'])
 def save_flow():
     data = request.json
-    print(f"data: {data}")
     flow_id = data['flow_id']
+    flow_json = json.dumps(data)
 
-    # read from flows.txt, if the flow_id is already in the file, update the flow
-    exists = False
-    with open('flows.txt', 'r') as f:
-        for line in f:
-            if flow_id in line:
-                exists = True
-                with open('flows.txt', 'w') as f:
-                    f.write(json.dumps(data) + '\n')
-                return jsonify({'status': 'ok'})
-    # if the flow_id is not in the file, append the flow
-    if not exists:
-        with open('flows.txt', 'a') as f:
-            f.write(json.dumps(data) + '\n')
+    conn = sqlite3.connect(DATABASE_FILE)
+    c = conn.cursor()
+
+    # 尝试更新，如果没有更新行，说明不存在，插入
+    c.execute('UPDATE flows SET flow_data = ? WHERE flow_id = ?',
+              (flow_json, flow_id))
+    if c.rowcount == 0:
+        c.execute('INSERT INTO flows (flow_id, flow_data) VALUES (?, ?)',
+                  (flow_id, flow_json))
+
+    conn.commit()
+    conn.close()
+
     return jsonify({'status': 'ok'})
 
 
 @app.route('/get_flows')
 def get_flows():
-    try:
-        with open('flows.txt') as f:
-            flows = [json.loads(line.strip()) for line in f]
-        simple_flows = [{"id": f["flow_id"],
-                         "nodeCount": len(f["nodes"])} for f in flows]
-        return jsonify({'flows': simple_flows})
-    except FileNotFoundError:
-        return jsonify({'flows': []})
+    conn = sqlite3.connect(DATABASE_FILE)
+    c = conn.cursor()
+
+    c.execute('SELECT flow_data FROM flows')
+    rows = c.fetchall()
+    conn.close()
+
+    flows = [json.loads(row[0]) for row in rows]
+    simple_flows = [{"id": f["flow_id"], "nodeCount": len(
+        f.get("nodes", []))} for f in flows]
+
+    return jsonify({'flows': simple_flows})
 
 
 @app.route('/get_flow/<flow_id>')
 def get_flow(flow_id):
     print(f"Getting flow with ID: {flow_id}")
     try:
-        with open('flows.txt') as f:
-            for line in f:
-                flow = json.loads(line.strip())
-                if flow["flow_id"] == flow_id:
-                    return jsonify(flow)
-        return jsonify({"error": "not found"}), 200
-    except FileNotFoundError:
-        return jsonify({"error": "file missing"}), 200
+        conn = sqlite3.connect(DATABASE_FILE)
+        c = conn.cursor()
+        c.execute('SELECT flow_data FROM flows WHERE flow_id = ?', (flow_id,))
+        row = c.fetchone()
+        conn.close()
+
+        if row:
+            flow = json.loads(row[0])
+            return jsonify(flow)
+        else:
+            return jsonify({"error": "not found"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/save_config', methods=['POST'])
@@ -126,38 +133,6 @@ def get_node_config():
 
     finally:
         conn.close()
-
-
-@app.route('/preview_data', methods=['POST'])
-def preview_data():
-    data = request.json
-    print(f"{data['flow_id']}")
-    print(f"{data['node_id']}")
-    print(f"{data}")
-
-    from dag_util import build_flowchart_data, execute_dag
-
-    flowchart_data = build_flowchart_data(
-        flow_id=data['flow_id'],
-        flows_file="flows.txt"
-    )
-
-    res = execute_dag(
-        nodes=flowchart_data["nodes"],
-        edges=flowchart_data["edges"],
-        backend_name="pandas"  # 👈 可以切换为 "polars"
-    )
-
-    print("flowchart_data", flowchart_data)
-    print("res", res)
-    if data['node_id'] in res:
-        res_data = res[data['node_id']].head(5).to_dict(orient='records')
-    else:
-        print(f"{data['node_id']} is not in res")
-        res_data = []
-
-    # return jsonify({'status': 'ok'})
-    return jsonify(res_data)
 
 
 @app.route('/add_dependency', methods=['POST'])
@@ -253,6 +228,37 @@ def save_node():
     return jsonify({'status': 'saved'}), 200
 
 
+@app.route('/preview_data', methods=['POST'])
+def preview_data():
+    data = request.json
+    print(f"{data['flow_id']}")
+    print(f"{data['node_id']}")
+    print(f"{data}")
+
+    from dag_util import build_flowchart_data, execute_dag
+
+    flowchart_data = build_flowchart_data(
+        flow_id=data['flow_id']
+    )
+
+    res = execute_dag(
+        nodes=flowchart_data["nodes"],
+        edges=flowchart_data["edges"],
+        backend_name="pandas"  # 👈 可以切换为 "polars"
+    )
+
+    print("flowchart_data", flowchart_data)
+    print("res", res)
+    if data['node_id'] in res:
+        res_data = res[data['node_id']].head(5).to_dict(orient='records')
+    else:
+        print(f"{data['node_id']} is not in res")
+        res_data = []
+
+    # return jsonify({'status': 'ok'})
+    return jsonify(res_data)
+
+
 @app.route('/compute_node', methods=['POST'])
 def compute_node():
     data = request.json
@@ -260,9 +266,6 @@ def compute_node():
     from dag_util import build_flowchart_data, execute_dag
     flowchart_data = build_flowchart_data(
         flow_id="43cd13c7-25b3-42f3-8d89-6ea353ac5daa",
-        flows_file="flows.txt",
-        nodes_file="nodes.txt",
-        node_configs_file="node_configs.txt"
     )
 
     res = execute_dag(
