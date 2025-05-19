@@ -22,11 +22,18 @@ import { v4 as uuidv4 } from 'uuid';
 import NodeDataPreview from './NodeDataPreview';
 import TopToolbar from './TopToolbar';
 import NodeConfig from './NodeConfig';
+import { CustomNode } from '../../components/CustomNode';
+import FileInputNode from '../../components/FileInputNode';
 const API_BASE = process.env.REACT_APP_API_BASE_URL;
 
 
 
 const nodeTypes = ['File Input', 'Data Viewer', 'Filter', 'Aggregate', 'Left Join'];
+
+const CustomNodeTypes = {
+    custom: CustomNode,
+    fileInput: FileInputNode,
+};
 
 
 const Designer: React.FC = () => {
@@ -145,7 +152,7 @@ const Designer: React.FC = () => {
             const id = uuidv4();
             const newNode: Node = {
                 id,
-                type: 'default',
+                type: 'custom',
                 position,
                 data: { label: type, type, config: {} },
             };
@@ -274,8 +281,9 @@ const Designer: React.FC = () => {
                                     style: { strokeWidth: 2, stroke: '#555' },
                                     markerEnd: { type: MarkerType.ArrowClosed, color: '#555' },
                                 }}
+                                nodeTypes={CustomNodeTypes}
                             >
-                                <MiniMap />
+                                {/* <MiniMap /> */}
                                 <Controls />
                                 <Background />
                             </ReactFlow>

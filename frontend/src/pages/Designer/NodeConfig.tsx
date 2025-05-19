@@ -11,7 +11,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { NodeConfigComponentMap } from "../../components/NodeConfigMap";
 
 interface Props {
-    selectedNode: { data: { label: string } } | null;
+    selectedNode: { data: { type: string } } | null;
     configForm: any;
     setConfigForm: React.Dispatch<React.SetStateAction<any>>;
     setSelectedNode: (node: null) => void;
@@ -27,8 +27,8 @@ const NodeConfig: React.FC<Props> = ({
     setShowBox2,
     handleSaveConfig,
 }) => {
-    const nodeLabel = selectedNode?.data.label ?? "";
-    const ConfigComponent = NodeConfigComponentMap[nodeLabel];
+    const nodeType = selectedNode?.data.type ?? "";
+    const ConfigComponent = NodeConfigComponentMap[nodeType];
 
     const handleFieldChange = (key: string, value: string) => {
         setConfigForm((prev: any) => ({
@@ -53,7 +53,7 @@ const NodeConfig: React.FC<Props> = ({
         >
             {/* Header */}
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Typography variant="h6">节点配置：{nodeLabel}</Typography>
+                <Typography variant="h6">节点配置：{nodeType}</Typography>
                 <IconButton
                     aria-label="关闭配置栏"
                     onClick={() => {
