@@ -21,12 +21,19 @@ def save_flow():
     data = request.json
     with SessionLocal() as db:
         flow = db.query(Flow).filter(Flow.flow_id == data['flow_id']).first()
+        print(f"flow: {flow}")
         flow_json = json.dumps(data)
+        print(f"flow_json: {flow_json}")
         if flow:
             flow.flow_data = flow_json
+            # 更新flow
+            db.commit()
         else:
+            print(f"flow_id: {data['flow_id']}")
             flow = Flow(flow_id=data['flow_id'], flow_data=flow_json)
+            # 添加flow
             db.add(flow)
+            db.commit()
     return jsonify({'status': 'ok'})
 
 # Get All Flows
@@ -67,6 +74,7 @@ def save_config():
                                 config_name=config_name, config_param=config_param)
         with SessionLocal() as db:
             db.add(new_config)
+            db.commit()
 
     return jsonify({"status": "saved"}), 200
 
@@ -106,6 +114,7 @@ def add_dependency():
         if not db.query(Dependency).filter(
                 Dependency.source == source, Dependency.target == target).first():
             db.add(Dependency(source=source, target=target))
+            db.commit()
 
     return jsonify({"status": "ok"}), 200
 
@@ -139,6 +148,7 @@ def save_node():
             node = Node(id=data['id'], type=data.get('type'),
                         created_at=data.get('created_at'))
             db.add(node)
+            db.commit()
     return jsonify({'status': 'saved'})
 
 

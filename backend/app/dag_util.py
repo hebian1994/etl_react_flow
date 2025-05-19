@@ -7,6 +7,7 @@ import json
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
+import os
 
 # ========== 后端基类接口 ==========
 
@@ -26,7 +27,14 @@ class PandasBackend(ETLBackend):
         print(params)
         print(_)
         # 获取文件第一行和第二行的内容，然后根据逗号切割得到字段名和数据类型,注意去掉结尾的换行符
-        with open(params["path"].strip('"'), 'r', encoding='utf-8') as f:
+        if "path" not in params:
+            print("path is not in params")
+            return pd.DataFrame()
+        fp = params["path"].strip('"')
+        if not os.path.exists(fp):
+            print(f"File not found: {fp}")
+            return pd.DataFrame()
+        with open(fp, 'r', encoding='utf-8') as f:
             first_line = f.readline().strip()
             second_line = f.readline().strip()
         print(f"first_line: {first_line}")
@@ -38,8 +46,8 @@ class PandasBackend(ETLBackend):
         # 文件的第一行为表头，第二行为数据类型，第三行开始为数据
         # 需要根据第二行的指定数据类型读取
         # 需要指定列名
-        df = pd.read_csv(params["path"].strip(
-            '"'), header=2, dtype=dict(zip(field_names, field_types)), names=field_names)
+        df = pd.read_csv(fp, header=2, dtype=dict(
+            zip(field_names, field_types)), names=field_names)
 
         return df
 
@@ -105,6 +113,9 @@ class ETLOperator:
         }
 
     def run(self, op_name, input_df, params):
+        print(f"run op_name: {op_name}")
+        print(f"run input_df: {input_df}")
+        print(f"run params: {params}")
         return self.dispatch[op_name](input_df, params)
 
     def run_left_join(self, op_name, input_df1, input_df2, params):
