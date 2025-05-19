@@ -22,6 +22,7 @@ import { useParams } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import PreviewBox4 from './PreviewBox4';
 import TopToolbar from './TopToolbar';
+import NodeConfigDrawer from './NodeConfigDrawer';
 
 
 const nodeTypes = ['File Input', 'Data Viewer', 'Filter', 'Aggregate', 'Left Join'];
@@ -236,91 +237,21 @@ const Layout: React.FC = () => {
                 {showBox2 && (
                     <div className="box2">
                         {selectedNode && (
-                            <div className="fixed top-0 left-0 h-full w-1/4 bg-white border-r shadow-lg p-4 z-50">
-                                {/* Header */}
-                                <div className="flex justify-between items-center mb-4">
-                                    <h2 className="text-lg font-semibold">
-                                        节点配置：{selectedNode.data.label}
-                                    </h2>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedNode(null);
-                                            setShowBox2((prev) => !prev);
-                                        }}
-                                        className="text-sm text-blue-500 underline"
-                                    >
-                                        关闭
-                                    </button>
-                                </div>
-
-                                {/* 配置项列表 */}
-                                <div className="space-y-3">
-                                    {Object.entries(configForm).map(([key, value]) => (
-                                        <div key={key} className="flex items-center gap-2">
-                                            <div className="flex-1">
-                                                <label className="block text-sm font-medium text-gray-700">{key}</label>
-                                                <input
-                                                    value={value}
-                                                    onChange={(e) => handleConfigChange(key, e.target.value)}
-                                                    className="w-full border px-2 py-1 rounded text-sm"
-                                                />
-                                                <button
-                                                    onClick={() => {
-                                                        const { [key]: _, ...rest } = configForm;
-                                                        setConfigForm(rest);
-                                                    }}
-                                                    className="text-red-500 hover:text-red-700 text-sm"
-                                                    title="删除该配置项"
-                                                >
-                                                    删除
-                                                </button>
-                                            </div>
-
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* 添加新配置项 */}
-                                <div className="mt-4 flex gap-2">
-                                    <input
-                                        value={newKey}
-                                        onChange={(e) => setNewKey(e.target.value)}
-                                        placeholder="新配置名"
-                                    // className="w-32 border px-2 py-1 rounded text-sm"
-                                    />
-                                    <input
-                                        value={newValue}
-                                        onChange={(e) => setNewValue(e.target.value)}
-                                        placeholder="新值"
-                                    // className="flex-1 border px-2 py-1 rounded text-sm"
-                                    />
-                                    <button
-                                        onClick={() => {
-                                            if (newKey.trim()) {
-                                                setConfigForm((prev) => ({ ...prev, [newKey]: newValue }));
-                                                setNewKey('');
-                                                setNewValue('');
-                                            }
-                                        }}
-                                        className="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
-                                    >
-                                        添加
-                                    </button>
-                                </div>
-
-                                {/* 保存按钮 */}
-                                <div className="mt-6">
-                                    <button
-                                        onClick={handleSaveConfig}
-                                        className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                                    >
-                                        保存配置
-                                    </button>
-                                </div>
-                            </div>
+                            <NodeConfigDrawer
+                                selectedNode={selectedNode}
+                                configForm={configForm}
+                                newKey={newKey}
+                                newValue={newValue}
+                                setSelectedNode={setSelectedNode}
+                                setShowBox2={setShowBox2}
+                                handleConfigChange={handleConfigChange}
+                                setConfigForm={setConfigForm}
+                                setNewKey={setNewKey}
+                                setNewValue={setNewValue}
+                                handleSaveConfig={handleSaveConfig}
+                            />
                         )}
                     </div>
-
                 )}
 
                 {/* 框3 - 主内容区 */}

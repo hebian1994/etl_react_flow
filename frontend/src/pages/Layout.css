@@ -35,7 +35,7 @@ html, body {
   /* 左侧框2 */
   .box2 {
     width: 400px;
-    border: 2px solid red;
+    /* border: 2px solid red; */
     background-color: white;
     height: 100%;
     flex-shrink: 0;
@@ -55,7 +55,7 @@ html, body {
   /* 框3 */
   .box3 {
     flex: 1;
-    border: 2px solid red;
+    /* border: 2px solid red; */
     background-color: white;
     text-align: center;
     padding-top: 10px;
