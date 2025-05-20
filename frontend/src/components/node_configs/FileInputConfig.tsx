@@ -6,7 +6,10 @@ import { Stack, TextField, Typography } from "@mui/material";
 export const nodeType = "File Input";
 
 interface Props {
-    config: { path: string };
+    config: {
+        // 如果没有这个key，那么就默认是空字符串
+        path: string
+     };
     onChange: (key: any, value: string) => void;
 }
 

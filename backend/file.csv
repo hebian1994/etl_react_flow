@@ -1,7 +1,6 @@
 name,age,country,salary
-str,int,str,float
-Alice,34,USA,70000
-Bob,28,Canada,50000
+Alice,34,USA,70000.10
+Bob,28,Canada,50000.20
 Charlie,45,USA,120000
 David,23,UK,40000
 Eva,38,Germany,82000

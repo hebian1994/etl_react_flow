@@ -48,6 +48,7 @@ const Designer: React.FC = () => {
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, nodeId: '' });
     const [edgeContextMenu, setEdgeContextMenu] = useState({ visible: false, x: 0, y: 0, edgeId: '' });
     const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+    const [nodeSchema, setNodeSchema] = useState<any[] | null>(null);
 
     const [selectedNode, setSelectedNode] = useState<Node | null>(null);
     const [modalType, setModalType] = useState<'file' | 'viewer' | null>(null);
@@ -86,7 +87,15 @@ const Designer: React.FC = () => {
         const node_config = await api.post(`/get_node_config`, payload);
         console.log("node_config", node_config.data);
         setConfigForm(node_config.data || {});
+
+        // should send request to get node schema @app.route('/get_node_schema', methods=['POST'])
+        const node_schema = await api.post(`/get_node_schema`, payload);
+        console.log("node_schema", node_schema.data);
+        setNodeSchema(node_schema.data);
+
         setShowBox2(true);
+
+
 
 
         // 如果有 dataPreview 数据，展示底部面板
@@ -113,7 +122,7 @@ const Designer: React.FC = () => {
         const save_config_payload = {
             flow_id: flowId,
             node_id: selectedNode.id,
-            config: configForm,
+            config: { configForm: configForm, node_schema: nodeSchema },
         };
 
         console.log("save_config_payload", save_config_payload);
@@ -306,10 +315,12 @@ const Designer: React.FC = () => {
                         {selectedNode && (
                             <NodeConfig
                                 selectedNode={selectedNode}
-                                configForm={configForm}
                                 setSelectedNode={setSelectedNode}
-                                setShowBox2={setShowBox2}
+                                configForm={configForm}
                                 setConfigForm={setConfigForm}
+                                nodeSchema={nodeSchema}
+                                setNodeSchema={setNodeSchema}
+                                setShowBox2={setShowBox2}
                                 handleSaveConfig={handleSaveConfig}
                             />
                         )}

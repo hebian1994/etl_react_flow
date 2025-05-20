@@ -34,3 +34,11 @@ class Dependency(Base):
     __tablename__ = 'dependencies'
     source = Column(String, primary_key=True)
     target = Column(String, primary_key=True)
+
+
+class NodeSchema(Base):
+    __tablename__ = 'node_schemas'
+    node_id = Column(String, primary_key=True)
+    node_schema = Column(String)
+    created_at = Column(String)
+    updated_at = Column(String)

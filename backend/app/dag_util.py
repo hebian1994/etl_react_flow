@@ -1,3 +1,5 @@
+from models import NodeSchema
+from file_utils import read_csv
 from lark import Lark, Transformer
 import polars as pl
 from db import SessionLocal  # 你创建 SQLAlchemy Session 的方法
@@ -10,200 +12,8 @@ import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
 import os
-
-# ========== 后端基类接口 ==========
-
-
-class ETLBackend:
-    def read_csv(self, params): raise NotImplementedError
-    def filter(self, df, params): raise NotImplementedError
-    def left_join(self, df1, df2, params): raise NotImplementedError
-    def aggregate(self, df, params): raise NotImplementedError
-    def output(self, df, params): return df  # 默认直接返回
-
-# ========== Pandas 实现 ==========
-
-
-class PandasBackend(ETLBackend):
-    def read_csv(self, _, params):
-        print(params)
-        print(_)
-        # 获取文件第一行和第二行的内容，然后根据逗号切割得到字段名和数据类型,注意去掉结尾的换行符
-        if "path" not in params:
-            print("path is not in params")
-            return pd.DataFrame()
-        fp = params["path"].strip('"')
-        if not os.path.exists(fp):
-            print(f"File not found: {fp}")
-            return pd.DataFrame()
-        with open(fp, 'r', encoding='utf-8') as f:
-            first_line = f.readline().strip()
-            second_line = f.readline().strip()
-        print(f"first_line: {first_line}")
-        print(f"second_line: {second_line}")
-        # 根据逗号切割得到字段名和数据类型
-        field_names = first_line.split(',')
-        field_types = second_line.split(',')
-
-        # 文件的第一行为表头，第二行为数据类型，第三行开始为数据
-        # 需要根据第二行的指定数据类型读取
-        # 需要指定列名
-        df = pd.read_csv(fp, header=2, dtype=dict(
-            zip(field_names, field_types)), names=field_names)
-
-        return df
-
-    def filter(self, df, params):
-        print(f"filter params: {params}")
-        if params["condition"] == "":
-            print("condition is empty")
-            return df
-        else:
-            return df.query(params["condition"])
-
-    def left_join(self, df1, df2, params):
-        print(f"left_join params: {params}")
-        if 'left_join_on' not in params:
-            print("left_join_on is empty")
-            return df1
-        else:
-            print(f"left_join_on: {params['left_join_on']}")
-            # will get join condition as "name=name and age=age"
-            # will get join condition as "name=name and age=age"
-            join_condition = params["left_join_on"].split(" and ")
-            # can use left_on and right_on to specify the join condition
-            left_on_arr = []
-            right_on_arr = []
-            for condition in join_condition:
-                left_on, right_on = condition.split("=")
-                left_on_arr.append(left_on)
-                right_on_arr.append(right_on)
-            df1 = df1.merge(df2, left_on=left_on_arr,
-                            right_on=right_on_arr, how="left")
-
-            df1 = df1.fillna("")
-
-            return df1
-
-    def aggregate(self, df, params):
-        return df.groupby(params["by"]).agg({"age": "mean"}).reset_index(drop=False)
-
-
-class PolarsBackend(ETLBackend):
-    def read_csv(self, _, params):
-        if "path" not in params:
-            print("path is not in params")
-            return pl.DataFrame()
-        fp = params["path"].strip('"')
-        if not os.path.exists(fp):
-            print(f"File not found: {fp}")
-            return pl.DataFrame()
-
-        with open(fp, 'r', encoding='utf-8') as f:
-            first_line = f.readline().strip()
-            second_line = f.readline().strip()
-
-        print(f"first_line: {first_line}")
-        print(f"second_line: {second_line}")
-
-        field_names = first_line.split(',')
-        field_types_str = second_line.split(',')
-
-        # 类型映射（可扩展）
-        dtype_map = {
-            'int64': pl.Int64,
-            'int': pl.Int64,
-            'float64': pl.Float64,
-            'float': pl.Float64,
-            'str': pl.Utf8,
-            'string': pl.Utf8,
-            'bool': pl.Boolean
-        }
-
-        dtypes = {
-            name: dtype_map.get(dtype.strip(), pl.Utf8)
-            for name, dtype in zip(field_names, field_types_str)
-        }
-
-        df = pl.read_csv(fp, skip_rows=2, has_header=False,
-                         new_columns=field_names, dtypes=dtypes)
-        return df
-
-    def filter(self, df, params):
-        condition = params.get("condition", "").strip()
-        print(f"filter condition: {condition}")
-        if not condition:
-            return df
-
-        from lark_util import parser
-        print(f"parser: {parser}")
-        expr = parser.parse(condition)
-        print(f"expr: {expr}")
-        filtered = df.filter(expr)
-        return filtered
-
-    def left_join(self, df1, df2, params):
-        if 'left_join_on' not in params:
-            print("left_join_on is missing")
-            return df1
-
-        join_condition = params["left_join_on"].split(" and ")
-        left_on = []
-        right_on = []
-
-        for cond in join_condition:
-            l, r = cond.split("=")
-            left_on.append(l.strip())
-            right_on.append(r.strip())
-
-        try:
-            df_joined = df1.join(df2, left_on=left_on,
-                                 right_on=right_on, how="left")
-            return df_joined
-        except Exception as e:
-            print(f"Join failed: {e}")
-            return df1
-
-    def aggregate(self, df, params):
-        # sample :
-        # aggregate params: {'groupBy': '["name", "country"]', 'aggregations': '[{"column": "age", "operation": "sum"}, {"column": "salary", "operation": "avg"}]'}
-        # 解析aggregate params
-        print(f"aggregate params: {params}")
-        group_by_cols = params.get("groupBy")
-        agg_config = params.get("aggregations")
-        group_by_cols = json.loads(group_by_cols)  # ['name', 'country']
-        agg_config = json.loads(agg_config)  # list of dicts
-        print(f"group_by_cols: {group_by_cols}")
-        print(f"agg_config: {agg_config}")
-
-        if not group_by_cols:
-            print("Group by column missing")
-            return df
-
-        agg_exprs = []
-        for agg in agg_config:
-            print(f"agg: {agg}")
-            col = agg['column']
-            op = agg['operation']
-
-            if op == "sum":
-                agg_exprs.append(pl.col(col).sum().alias(f"{col}_sum"))
-            elif op == "avg":
-                agg_exprs.append(pl.col(col).mean().alias(f"{col}_avg"))
-            elif op == "min":
-                agg_exprs.append(pl.col(col).min().alias(f"{col}_min"))
-            elif op == "max":
-                agg_exprs.append(pl.col(col).max().alias(f"{col}_max"))
-            elif op == "count":
-                agg_exprs.append(pl.col(col).count().alias(f"{col}_count"))
-            else:
-                raise ValueError(f"Unsupported aggregation operation: {op}")
-
-        # Step 3: 执行聚合
-        result = df.group_by(group_by_cols).agg(agg_exprs)
-
-        return result
-
+from ETLBackend import PandasBackend, PolarsBackend
+from ETLBackend import ETLBackend
 
 # ========== 操作调度器 ==========
 
@@ -279,6 +89,91 @@ def execute_dag(nodes, edges, backend_name="pandas", target_node_id=None):
     print(f"results: {results}")
     return results
 
+
+def infer_schema_dag(nodes, edges, target_node_id=None, backend_name="polars"):
+    G = nx.DiGraph()
+    node_map = {node["id"]: node for node in nodes}
+
+    for node in nodes:
+        G.add_node(node["id"], op=node["type"], params=node["params"])
+    for edge in edges:
+        G.add_edge(edge["source"], edge["target"])
+
+    if target_node_id:
+        if target_node_id not in G.nodes:
+            raise ValueError(f"Target node '{target_node_id}' not in DAG")
+        required_nodes = nx.ancestors(G, target_node_id)
+        required_nodes.add(target_node_id)
+        subgraph = G.subgraph(required_nodes).copy()
+        sorted_nodes = list(nx.topological_sort(subgraph))
+    else:
+        sorted_nodes = list(nx.topological_sort(G))
+
+    schema_results = {}
+
+    print("sorted_nodes", sorted_nodes)
+
+    for node_id in sorted_nodes:
+        node = node_map[node_id]
+        op = node["type"]
+        params = node["params"]
+        print("node", node)
+        preds = list(G.predecessors(node_id))
+        input_schemas = [schema_results[p] for p in preds] if preds else []
+
+        # 推断 schema
+        if op == "File Input":
+            # 从 params 中取文件路径，读取前几行获取 schema（伪代码/示例）
+            from file_utils import get_file_schema
+            schema = get_file_schema(params, backend_name)
+
+        elif op == "Filter":
+            # 不改变 schema
+            schema = input_schemas[0]
+
+        elif op == "Select":
+            # 只保留指定列
+            selected_columns = params.get("columns", [])
+            schema = [col for col in input_schemas[0]
+                      if col["name"] in selected_columns]
+
+        elif op == "Aggregate":
+            # {'id': '2e8e4f5b-0e1a-4726-9e5f-b9f363e8b282', 'type': 'Aggregate', 'params': {'groupBy': '["name", "country"]', 'aggregations': '[{"column": "age", "operation": "sum"}, {"column": "salary", "operation": "avg"}]'}}
+            # [{"name": "sum_sales", "dtype": "float"}]
+            group_by_cols = params.get("groupBy")
+            agg_config = params.get("aggregations")
+            group_by_cols = json.loads(group_by_cols)  # ['name', 'country']
+            agg_cols = []
+            for kv in json.loads(agg_config):
+                agg_cols.append(kv['column'])
+
+            total_cols = group_by_cols+agg_cols
+
+            schema = [col for col in input_schemas[0]
+                      if col["name"] in total_cols]
+
+        elif op == "Left Join":
+            left_schema = input_schemas[0]
+            right_schema = input_schemas[1]
+            print("left_schema", left_schema)
+            print("right_schema", right_schema)
+
+            # 加上前缀避免列名冲突（可以更精细地处理）
+            right_prefixed = [
+                {"name": f"right_{col['name']}", "dtype": col["dtype"]} for col in right_schema
+                if col["name"] not in {col["name"] for col in left_schema}
+            ]
+            print("right_prefixed", right_prefixed)
+            schema = left_schema + right_prefixed
+
+        else:
+            # 默认传递上一个 schema
+            schema = input_schemas[0] if input_schemas else []
+
+        schema_results[node_id] = schema
+
+    return schema_results[target_node_id] if target_node_id else schema_results
+
 # ========== 可视化 ==========
 
 
@@ -333,7 +228,7 @@ def build_flowchart_data(flow_id):
             config_param_arr = node_config_map.get(node_id, [])
             print(f"config_param_arr: {config_param_arr}")
 
-            params = {}
+            params = {'node_id': node_id}
             if node_type == "File Input":
                 for config in config_param_arr:
                     if 'path' in config:
@@ -353,7 +248,7 @@ def build_flowchart_data(flow_id):
                     if 'aggregations' in config:
                         params["aggregations"] = config['aggregations']
             elif node_type == "Data Viewer":
-                params = {}
+                params = {'node_id': node_id}
             else:
                 raise ValueError(f"Unknown node type: {node_type}")
 

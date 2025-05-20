@@ -1,3 +1,5 @@
+from datetime import datetime
+from models import NodeSchema
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sqlalchemy.dialects.sqlite import insert
@@ -81,18 +83,27 @@ def get_flow(flow_id):
 
 
 # Save Config
+
+
 @app.route('/save_config', methods=['POST'])
 def save_config():
     data = request.json
     flow_id = data.get('flow_id')
     node_id = data.get('node_id')
+    print(f"data: {data}")
     config = data.get('config', {})
-    print(f"config: {config}")
+    configForm = config.get('configForm', {})
+    # 转成JSON字符串
+    node_schema = config.get('node_schema', [])
+    node_schema = json.dumps(node_schema)
+    print(f"configForm: {configForm}")
+    print(f"node_schema: {node_schema}")
 
     with SessionLocal() as db:
         db.query(NodeConfig).filter(NodeConfig.node_id == node_id).delete()
         db.commit()
-        for config_name, config_param in config.items():
+        print(f"delete old node config")
+        for config_name, config_param in configForm.items():
             print(f"config_name: {config_name}, config_param: {config_param}")
             # config_param 是list，需要转换为str
             if isinstance(config_param, list):
@@ -101,6 +112,12 @@ def save_config():
                                     config_name=config_name, config_param=config_param)
             db.add(new_config)
             db.commit()
+            print(f"add new node config")
+
+        #
+        print('config changed , infer schema from flowchart_data')
+        schema_results = infer_schema_from_flowchart_data(flow_id, node_id)
+        node_schema = json.dumps(schema_results)
 
     return jsonify({"status": "saved"}), 200
 
@@ -128,6 +145,15 @@ def get_node_config():
                 config_dict[row.config_name] = json.loads(row.config_param)
             except:
                 config_dict[row.config_name] = row.config_param
+
+        # 如果config_dict是空的，且节点类型是File Input，那么就默认是空字符串
+        # type要从node_config中查
+        if not config_dict:
+            with SessionLocal() as db:
+                node_type = db.query(Node).filter(
+                    Node.id == node_id).first().type
+                if node_type == 'File Input':
+                    config_dict['path'] = ''
 
         return jsonify(config_dict)
 
@@ -200,6 +226,107 @@ def save_node():
             db.commit()
     return jsonify({'status': 'saved'})
 
+# get node schema
+
+
+def infer_schema_from_flowchart_data(flow_id, node_id):
+    with SessionLocal() as db:
+        from dag_util import build_flowchart_data, execute_dag
+
+        flowchart_data = build_flowchart_data(
+            flow_id=flow_id
+        )
+
+        from dag_util import infer_schema_dag
+        schema_results = infer_schema_dag(
+            nodes=flowchart_data["nodes"],
+            edges=flowchart_data["edges"],
+            target_node_id=node_id
+        )
+
+        print("schema_results", schema_results)
+
+        # 删除node_schema
+        db.query(NodeSchema).filter(
+            NodeSchema.node_id == node_id).delete()
+        db.commit()
+        # 添加新的node_schema
+        new_node_schema = NodeSchema(
+            node_id=node_id, node_schema=json.dumps(schema_results), created_at=datetime.now().isoformat(), updated_at=datetime.now().isoformat())
+        db.add(new_node_schema)
+        db.commit()
+
+    return schema_results
+
+
+@app.route('/get_node_schema', methods=['POST'])
+def get_node_schema():
+    data = request.json
+    node_id = data.get('node_id')
+    if not node_id:
+        return jsonify({"error": "Missing node_id"}), 400
+
+    with SessionLocal() as db:
+        node_schema = db.query(NodeSchema).filter(
+            NodeSchema.node_id == node_id).first()
+        # 如果能查出数据，那么就直接返回。查出来的是个json字符串，需要转换为dict
+        if node_schema and len(node_schema.node_schema) > 0:
+            node_schema_dict = json.loads(node_schema.node_schema)
+            if len(node_schema_dict) > 0:
+                print(len(node_schema_dict))
+                print(f'get node schema from db')
+                print(f'node_schema: {node_schema_dict}')
+                return jsonify(node_schema_dict)
+
+    print(f'no node schema in db, infer from flowchart_data')
+
+    # 查找node_config，查看config_name=path是否已经配置
+    with SessionLocal() as db:
+        # 从nodes查出node的type
+        node_type = db.query(Node).filter(
+            Node.id == node_id).first().type
+        need_infer_schema = False
+        if node_type == 'File Input':
+            node_config = db.query(NodeConfig).filter(
+                NodeConfig.config_name == 'path',
+                NodeConfig.node_id == node_id).first()
+            if not node_config:
+                print("path is not in node_config,unable to infer schema")
+                schema_results = []
+            else:
+                print('11111111111')
+                need_infer_schema = True
+        elif node_type == 'Left Join':
+            print('22222222222')
+            node_config = db.query(NodeConfig).filter(
+                NodeConfig.config_name == 'left_join_on',
+                NodeConfig.node_id == node_id).first()
+            if not node_config:
+                print("left_join_on is not in node_config,unable to infer schema")
+                schema_results = []
+            else:
+                need_infer_schema = True
+        elif node_type == 'Aggregate':
+            print('33333333333')
+            node_config = db.query(NodeConfig).filter(
+                NodeConfig.config_name == 'groupBy',
+                NodeConfig.node_id == node_id).first()
+            if not node_config:
+                print("groupBy is not in node_config,unable to infer schema")
+                schema_results = []
+            else:
+                need_infer_schema = True
+        else:
+            need_infer_schema = True
+
+        if need_infer_schema:
+            print("path is in node_config, infer schema from flowchart_data")
+
+            schema_results = infer_schema_from_flowchart_data(
+                data['flow_id'], node_id)
+
+    return jsonify(schema_results)
+
 
 @app.route('/preview_data', methods=['POST'])
 def preview_data():
@@ -207,6 +334,14 @@ def preview_data():
     print(f"{data['flow_id']}")
     print(f"{data['node_id']}")
     print(f"{data}")
+
+    # 如果没有定义node_schema，那么就从flowchart_data中推断
+    with SessionLocal() as db:
+        node_schema = db.query(NodeSchema).filter(
+            NodeSchema.node_id == data['node_id']).first()
+        if not node_schema:
+            print(f'undefined node schema, unable to preview data')
+            return jsonify([])
 
     from dag_util import build_flowchart_data, execute_dag
 
