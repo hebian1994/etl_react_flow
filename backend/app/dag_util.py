@@ -1,3 +1,4 @@
+from lark import Lark, Transformer
 import polars as pl
 from db import SessionLocal  # 你创建 SQLAlchemy Session 的方法
 from models import Flow, Node, NodeConfig  # 你需要确保这些模型存在
@@ -111,6 +112,7 @@ class PolarsBackend(ETLBackend):
         # 类型映射（可扩展）
         dtype_map = {
             'int64': pl.Int64,
+            'int': pl.Int64,
             'float64': pl.Float64,
             'str': pl.Utf8,
             'string': pl.Utf8,
@@ -128,17 +130,16 @@ class PolarsBackend(ETLBackend):
 
     def filter(self, df, params):
         condition = params.get("condition", "").strip()
+        print(f"filter condition: {condition}")
         if not condition:
             return df
-        try:
-            # 用表达式解析器进行解析
-            # 安全实现（不推荐 eval）
-            expr = pl.select(pl.query(condition))
-            return df.filter(expr)
-        except Exception as e:
-            print(f"Error evaluating filter condition: {condition}")
-            print(e)
-            return df
+
+        from lark_util import parser
+        print(f"parser: {parser}")
+        expr = parser.parse(condition)
+        print(f"expr: {expr}")
+        filtered = df.filter(expr)
+        return filtered
 
     def left_join(self, df1, df2, params):
         if 'left_join_on' not in params:
