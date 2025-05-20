@@ -16,7 +16,6 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'reactflow/dist/style.css';
-import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import NodeDataPreview from './NodeDataPreview';
@@ -25,7 +24,8 @@ import NodeConfig from './NodeConfig';
 import { CustomNode } from '../../components/CustomNode';
 import FileInputNode from '../../components/FileInputNode';
 import ContextMenu from '../../components/ContextMenu';
-const API_BASE = process.env.REACT_APP_API_BASE_URL;
+import api from '../../utils/api';
+
 
 
 
@@ -62,7 +62,7 @@ const Designer: React.FC = () => {
         setShowBox4(false);
         console.log(process.env.NODE_ENV)
         const fetchFlow = async () => {
-            const res = await axios.get(`${API_BASE}/get_flow/${flowId}`);
+            const res = await api.get(`/get_flow/${flowId}`);
             if (res.data.nodes) setNodes(res.data.nodes);
             if (res.data.edges) setEdges(res.data.edges);
         };
@@ -83,14 +83,14 @@ const Designer: React.FC = () => {
 
 
         // should send request to get config @app.route('/get_node_config', methods=['POST'])
-        const node_config = await axios.post(`${API_BASE}/get_node_config`, payload);
+        const node_config = await api.post(`/get_node_config`, payload);
         console.log("node_config", node_config.data);
         setConfigForm(node_config.data || {});
         setShowBox2(true);
 
 
         // 如果有 dataPreview 数据，展示底部面板
-        const res = await axios.post(`${API_BASE}/preview_data`, payload);
+        const res = await api.post(`/preview_data`, payload);
         console.log(res.data);
 
         if (res.data.length > 0) {
@@ -119,7 +119,7 @@ const Designer: React.FC = () => {
         console.log("save_config_payload", save_config_payload);
 
         try {
-            await axios.post(`${API_BASE}/save_config`, save_config_payload);
+            await api.post(`/save_config`, save_config_payload);
             alert('配置保存成功');
 
             // 同时更新本地节点数据
@@ -164,7 +164,7 @@ const Designer: React.FC = () => {
             setNodes((nds) => [...nds, newNode]);
 
             // 通知后端新节点
-            await axios.post(`${API_BASE}/save_node`, {
+            await api.post(`/save_node`, {
                 flow_id: flowId,
                 id,
                 type,
@@ -183,7 +183,7 @@ const Designer: React.FC = () => {
     const onConnect = useCallback(
         async (params: Edge | Connection) => {
             setEdges((eds) => addEdge(params, eds));
-            await axios.post(`${API_BASE}/add_dependency`, {
+            await api.post(`/add_dependency`, {
                 flow_id: flowId,
                 source: params.source,
                 target: params.target,
@@ -199,12 +199,12 @@ const Designer: React.FC = () => {
         setNodes((nds) => nds.filter((n) => n.id !== contextMenu.nodeId));
         setEdges((eds) => eds.filter((e) => e.source !== contextMenu.nodeId && e.target !== contextMenu.nodeId));
 
-        await axios.post(`${API_BASE}/delete_node_dependencies`, {
+        await api.post(`/delete_node_dependencies`, {
             flow_id: flowId,
             nodeId: contextMenu.nodeId,
         });
         // 同时也保存flow
-        await axios.post(`${API_BASE}/save_flow`, {
+        await api.post(`/save_flow`, {
             flow_id: flowId,
             nodes,
             edges,
@@ -225,7 +225,7 @@ const Designer: React.FC = () => {
         const { source, target } = edgeToDelete;
 
         // 后端删除依赖
-        await axios.post(`${API_BASE}/delete_dependency`, {
+        await api.post(`/delete_dependency`, {
             flow_id: flowId,
             source,
             target,
@@ -238,7 +238,7 @@ const Designer: React.FC = () => {
         setEdges(newEdges);
 
         // 保存 flow（用新的 edges）
-        await axios.post(`${API_BASE}/save_flow`, {
+        await api.post(`/save_flow`, {
             flow_id: flowId,
             nodes,
             edges: newEdges,
@@ -279,7 +279,7 @@ const Designer: React.FC = () => {
 
     // 保存流程
     const handleSave = async () => {
-        await axios.post(`${API_BASE}/save_flow`, {
+        await api.post(`/save_flow`, {
             flow_id: flowId,
             nodes,
             edges,
