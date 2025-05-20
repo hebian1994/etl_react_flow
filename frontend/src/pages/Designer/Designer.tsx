@@ -24,6 +24,7 @@ import TopToolbar from './TopToolbar';
 import NodeConfig from './NodeConfig';
 import { CustomNode } from '../../components/CustomNode';
 import FileInputNode from '../../components/FileInputNode';
+import ContextMenu from '../../components/ContextMenu';
 const API_BASE = process.env.REACT_APP_API_BASE_URL;
 
 
@@ -353,38 +354,31 @@ const Designer: React.FC = () => {
                             </ReactFlow>
                             {/* </div> */}
                             {/* 右键菜单 */}
-                            {contextMenu.visible && (
-                                <div
-                                    style={{
-                                        position: 'absolute',
-                                        top: contextMenu.y,
-                                        left: contextMenu.x,
-                                        background: '#fff',
-                                        border: '1px solid #ccc',
-                                        zIndex: 1000,
-                                        padding: 5,
-                                    }}
-                                >
-                                    <button onClick={deleteNode}>🗑 删除节点</button>
-                                    <button onClick={() => setContextMenu({ ...contextMenu, visible: false })}>取消</button>
-                                </div>
-                            )}
-                            {edgeContextMenu.visible && (
-                                <div
-                                    style={{
-                                        position: 'absolute',
-                                        top: edgeContextMenu.y,
-                                        left: edgeContextMenu.x,
-                                        background: '#fff',
-                                        border: '1px solid #ccc',
-                                        zIndex: 1000,
-                                        padding: 5,
-                                    }}
-                                >
-                                    <button onClick={deleteEdge}>删除</button>
-                                    <button onClick={() => setEdgeContextMenu({ ...edgeContextMenu, visible: false })}>取消</button>
-                                </div>
-                            )}
+                            <ContextMenu
+                                visible={contextMenu.visible}
+                                x={contextMenu.x}
+                                y={contextMenu.y}
+                                onClose={() => setContextMenu({ ...contextMenu, visible: false })}
+                                actions={[
+                                    {
+                                        label: '🗑 删除节点',
+                                        onClick: deleteNode,
+                                    },
+                                ]}
+                            />
+
+                            <ContextMenu
+                                visible={edgeContextMenu.visible}
+                                x={edgeContextMenu.x}
+                                y={edgeContextMenu.y}
+                                onClose={() => setEdgeContextMenu({ ...edgeContextMenu, visible: false })}
+                                actions={[
+                                    {
+                                        label: '删除连线',
+                                        onClick: deleteEdge,
+                                    },
+                                ]}
+                            />
                         </div>
 
 
