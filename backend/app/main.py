@@ -154,6 +154,23 @@ def delete_node_dependencies():
             (Dependency.source == node_id) | (Dependency.target == node_id)).delete()
     return jsonify({"status": "deleted", "deleted_rows": deleted}), 200
 
+# Delete Dependency
+
+
+@app.route('/delete_dependency', methods=['POST'])
+def delete_dependency():
+    data = request.json
+    source = data.get('source')
+    target = data.get('target')
+    if not source or not target:
+        return jsonify({"status": "error", "message": "Missing source or target"}), 400
+
+    with SessionLocal() as db:
+        deleted = db.query(Dependency).filter(
+            Dependency.source == source, Dependency.target == target).delete()
+        db.commit()
+    return jsonify({"status": "deleted", "deleted_rows": deleted}), 200
+
 # Save Node
 
 

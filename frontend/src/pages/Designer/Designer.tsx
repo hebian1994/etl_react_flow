@@ -45,6 +45,9 @@ const Designer: React.FC = () => {
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, nodeId: '' });
+    const [edgeContextMenu, setEdgeContextMenu] = useState({ visible: false, x: 0, y: 0, edgeId: '' });
+    const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
     const [selectedNode, setSelectedNode] = useState<Node | null>(null);
     const [modalType, setModalType] = useState<'file' | 'viewer' | null>(null);
     const [configForm, setConfigForm] = useState<Record<string, any>>({});
@@ -199,11 +202,54 @@ const Designer: React.FC = () => {
             flow_id: flowId,
             nodeId: contextMenu.nodeId,
         });
+        // 同时也保存flow
+        await axios.post(`${API_BASE}/save_flow`, {
+            flow_id: flowId,
+            nodes,
+            edges,
+        });
 
         setContextMenu({ ...contextMenu, visible: false });
     };
 
-    const handleRightClick = (event: React.MouseEvent, node: Node) => {
+    const deleteEdge = async () => {
+        if (!edgeContextMenu.edgeId) return;
+
+        const edgeIdToDelete = edgeContextMenu.edgeId;
+
+        // 获取要删除的边的信息
+        const edgeToDelete = edges.find((e) => e.id === edgeIdToDelete);
+        if (!edgeToDelete) return;
+
+        const { source, target } = edgeToDelete;
+
+        // 后端删除依赖
+        await axios.post(`${API_BASE}/delete_dependency`, {
+            flow_id: flowId,
+            source,
+            target,
+        });
+
+        // 新的边列表
+        const newEdges = edges.filter((e) => e.id !== edgeIdToDelete);
+
+        // 更新 state
+        setEdges(newEdges);
+
+        // 保存 flow（用新的 edges）
+        await axios.post(`${API_BASE}/save_flow`, {
+            flow_id: flowId,
+            nodes,
+            edges: newEdges,
+        });
+
+        // 关闭右键菜单
+        setEdgeContextMenu({ ...edgeContextMenu, visible: false });
+    };
+
+
+    // 节点右键菜单
+    const onNodeContextMenu = (event: React.MouseEvent, node: Node) => {
         event.preventDefault();
         setContextMenu({
             visible: true,
@@ -212,6 +258,23 @@ const Designer: React.FC = () => {
             nodeId: node.id,
         });
     };
+
+    // 连线右键菜单
+    const onEdgeContextMenu = async (event: React.MouseEvent, edge: Edge) => {
+        event.preventDefault();
+
+        console.log("edges", edges);
+        console.log("nodes", nodes);
+        setEdgeContextMenu({
+            visible: true,
+            x: event.clientX,
+            y: event.clientY,
+            edgeId: edge.id,
+        });
+
+    }
+
+
 
     // 保存流程
     const handleSave = async () => {
@@ -275,7 +338,8 @@ const Designer: React.FC = () => {
                                 onInit={setRfInstance}
                                 onDrop={onDrop}
                                 onDragOver={onDragOver}
-                                onNodeContextMenu={handleRightClick}
+                                onNodeContextMenu={onNodeContextMenu}
+                                onEdgeContextMenu={onEdgeContextMenu}
                                 fitView
                                 defaultEdgeOptions={{
                                     style: { strokeWidth: 2, stroke: '#555' },
@@ -302,6 +366,23 @@ const Designer: React.FC = () => {
                                     }}
                                 >
                                     <button onClick={deleteNode}>🗑 删除节点</button>
+                                    <button onClick={() => setContextMenu({ ...contextMenu, visible: false })}>取消</button>
+                                </div>
+                            )}
+                            {edgeContextMenu.visible && (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        top: edgeContextMenu.y,
+                                        left: edgeContextMenu.x,
+                                        background: '#fff',
+                                        border: '1px solid #ccc',
+                                        zIndex: 1000,
+                                        padding: 5,
+                                    }}
+                                >
+                                    <button onClick={deleteEdge}>删除</button>
+                                    <button onClick={() => setEdgeContextMenu({ ...edgeContextMenu, visible: false })}>取消</button>
                                 </div>
                             )}
                         </div>
