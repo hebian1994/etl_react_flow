@@ -114,6 +114,7 @@ class PolarsBackend(ETLBackend):
             'int64': pl.Int64,
             'int': pl.Int64,
             'float64': pl.Float64,
+            'float': pl.Float64,
             'str': pl.Utf8,
             'string': pl.Utf8,
             'bool': pl.Boolean
@@ -164,30 +165,44 @@ class PolarsBackend(ETLBackend):
             return df1
 
     def aggregate(self, df, params):
-        by_cols = params.get("by")
-        agg_col = params.get("agg_col", "age")  # 默认聚合 age
-        agg_func = params.get("agg_func", "mean")
+        # sample :
+        # aggregate params: {'groupBy': '["name", "country"]', 'aggregations': '[{"column": "age", "operation": "sum"}, {"column": "salary", "operation": "avg"}]'}
+        # 解析aggregate params
+        print(f"aggregate params: {params}")
+        group_by_cols = params.get("groupBy")
+        agg_config = params.get("aggregations")
+        group_by_cols = json.loads(group_by_cols)  # ['name', 'country']
+        agg_config = json.loads(agg_config)  # list of dicts
+        print(f"group_by_cols: {group_by_cols}")
+        print(f"agg_config: {agg_config}")
 
-        if not by_cols:
+        if not group_by_cols:
             print("Group by column missing")
             return df
 
-        try:
-            if agg_func == "mean":
-                agg_expr = pl.col(agg_col).mean().alias(f"{agg_col}_mean")
-            elif agg_func == "sum":
-                agg_expr = pl.col(agg_col).sum().alias(f"{agg_col}_sum")
-            elif agg_func == "count":
-                agg_expr = pl.count().alias("count")
-            else:
-                print(f"Unsupported aggregation function: {agg_func}")
-                return df
+        agg_exprs = []
+        for agg in agg_config:
+            print(f"agg: {agg}")
+            col = agg['column']
+            op = agg['operation']
 
-            result = df.groupby(by_cols).agg([agg_expr])
-            return result
-        except Exception as e:
-            print(f"Aggregation failed: {e}")
-            return df
+            if op == "sum":
+                agg_exprs.append(pl.col(col).sum().alias(f"{col}_sum"))
+            elif op == "avg":
+                agg_exprs.append(pl.col(col).mean().alias(f"{col}_avg"))
+            elif op == "min":
+                agg_exprs.append(pl.col(col).min().alias(f"{col}_min"))
+            elif op == "max":
+                agg_exprs.append(pl.col(col).max().alias(f"{col}_max"))
+            elif op == "count":
+                agg_exprs.append(pl.col(col).count().alias(f"{col}_count"))
+            else:
+                raise ValueError(f"Unsupported aggregation operation: {op}")
+
+        # Step 3: 执行聚合
+        result = df.group_by(group_by_cols).agg(agg_exprs)
+
+        return result
 
 
 # ========== 操作调度器 ==========
@@ -202,6 +217,7 @@ class ETLOperator:
             "Filter": self.backend.filter,
             "Left Join": self.backend.left_join,
             "aggregate": self.backend.aggregate,
+            "Aggregate": self.backend.aggregate,
             "output": self.backend.output,
             "Data Viewer": self.backend.output,
         }
@@ -306,6 +322,8 @@ def build_flowchart_data(flow_id):
             node_config_map[node_id].append(
                 {config.config_name: config.config_param})
 
+        print(f"node_config_map: {node_config_map}")
+
         # ④ 构建 nodes 数据
         nodes = []
         print(f"target_flow: {target_flow}")
@@ -313,20 +331,31 @@ def build_flowchart_data(flow_id):
             node_id = node['id']
             node_type = node_type_map.get(node_id, "unknown")
             config_param_arr = node_config_map.get(node_id, [])
+            print(f"config_param_arr: {config_param_arr}")
 
             params = {}
             if node_type == "File Input":
                 for config in config_param_arr:
                     if 'path' in config:
-                        params = {"path": config['path']}
+                        params["path"] = config['path']
             elif node_type == "Filter":
                 for config in config_param_arr:
                     if 'condition' in config:
-                        params = {"condition": config['condition']}
+                        params["condition"] = config['condition']
             elif node_type == "Left Join":
                 for config in config_param_arr:
                     if 'left_join_on' in config:
-                        params = {"left_join_on": config['left_join_on']}
+                        params["left_join_on"] = config['left_join_on']
+            elif node_type == "Aggregate":
+                for config in config_param_arr:
+                    if 'groupBy' in config:
+                        params["groupBy"] = config['groupBy']
+                    if 'aggregations' in config:
+                        params["aggregations"] = config['aggregations']
+            elif node_type == "Data Viewer":
+                params = {}
+            else:
+                raise ValueError(f"Unknown node type: {node_type}")
 
             nodes.append({
                 "id": node_id,

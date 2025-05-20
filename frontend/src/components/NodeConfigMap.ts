@@ -1,4 +1,5 @@
 // components/NodeConfigMap.ts
+import AggregateConfig from "./node_configs/AggregateConfig";
 import DataViewerConfig from "./node_configs/DataViewerConfig";
 import FileInputConfig from "./node_configs/FileInputConfig";
 import FilterConfig from "./node_configs/FilterConfig";
@@ -9,4 +10,5 @@ export const NodeConfigComponentMap: Record<string, React.FC<any>> = {
     "Filter": FilterConfig,
     "Data Viewer": DataViewerConfig,
     "Left Join": LeftJoinConfig,
+    "Aggregate": AggregateConfig,
 };

@@ -87,11 +87,16 @@ def save_config():
     flow_id = data.get('flow_id')
     node_id = data.get('node_id')
     config = data.get('config', {})
+    print(f"config: {config}")
 
     with SessionLocal() as db:
         db.query(NodeConfig).filter(NodeConfig.node_id == node_id).delete()
         db.commit()
         for config_name, config_param in config.items():
+            print(f"config_name: {config_name}, config_param: {config_param}")
+            # config_param 是list，需要转换为str
+            if isinstance(config_param, list):
+                config_param = json.dumps(config_param)
             new_config = NodeConfig(flow_id=flow_id, node_id=node_id,
                                     config_name=config_name, config_param=config_param)
             db.add(new_config)
@@ -116,8 +121,14 @@ def get_node_config():
 
         config_rows = db.query(NodeConfig).filter(
             NodeConfig.node_id == node_id).all()
-        config_dict = {
-            row.config_name: row.config_param for row in config_rows}
+        # config_param本来可能是个list，需要转换为list，但也可能不是list,不是就不转。应该用try catch
+        config_dict = {}
+        for row in config_rows:
+            try:
+                config_dict[row.config_name] = json.loads(row.config_param)
+            except:
+                config_dict[row.config_name] = row.config_param
+
         return jsonify(config_dict)
 
 # Add Dependency
