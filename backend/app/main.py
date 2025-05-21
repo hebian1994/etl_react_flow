@@ -1,3 +1,6 @@
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+from models import NodeConfigStatus
 from datetime import datetime
 from models import NodeSchema
 from flask import Flask, request, jsonify
@@ -85,8 +88,8 @@ def get_flow(flow_id):
 # Save Config
 
 
-@app.route('/save_config', methods=['POST'])
-def save_config():
+@app.route('/save_node_config', methods=['POST'])
+def save_node_config():
     data = request.json
     flow_id = data.get('flow_id')
     node_id = data.get('node_id')
@@ -99,25 +102,74 @@ def save_config():
     print(f"configForm: {configForm}")
     print(f"node_schema: {node_schema}")
 
+    # 从nodes中查出node的type
     with SessionLocal() as db:
-        db.query(NodeConfig).filter(NodeConfig.node_id == node_id).delete()
-        db.commit()
-        print(f"delete old node config")
-        for config_name, config_param in configForm.items():
-            print(f"config_name: {config_name}, config_param: {config_param}")
-            # config_param 是list，需要转换为str
-            if isinstance(config_param, list):
-                config_param = json.dumps(config_param)
-            new_config = NodeConfig(flow_id=flow_id, node_id=node_id,
-                                    config_name=config_name, config_param=config_param)
-            db.add(new_config)
-            db.commit()
-            print(f"add new node config")
+        node_type = db.query(Node).filter(Node.id == node_id).first().type
+        if node_type == 'File Input':
+            # 需要确保提交了path
+            if 'path' not in configForm:
+                return jsonify({"status": "error", "node_config_status": "path is required"}), 200
+            elif configForm['path'] == '':
+                return jsonify({"status": "error", "node_config_status": "path is empty"}), 200
+        elif node_type == 'Filter':
+            # 需要确保提交了filter_condition
+            if 'condition' not in configForm:
+                return jsonify({"status": "error", "node_config_status": "condition is required"}), 200
+            elif configForm['condition'] == '':
+                return jsonify({"status": "error", "node_config_status": "condition is empty"}), 200
+        else:
+            raise Exception(f"node_type {node_type} is not supported")
 
-        #
-        print('config changed , infer schema from flowchart_data')
-        schema_results = infer_schema_from_flowchart_data(flow_id, node_id)
-        node_schema = json.dumps(schema_results)
+    # 所有的数据更改应该在同一个事务内
+    with SessionLocal() as db:
+        try:
+            # 删除旧配置
+            db.query(NodeConfig).filter(NodeConfig.node_id == node_id).delete()
+            db.commit()
+
+            # 添加新配置
+            for config_name, config_param in configForm.items():
+                print(
+                    f"config_name: {config_name}, config_param: {config_param}")
+                if isinstance(config_param, list):
+                    config_param = json.dumps(config_param)
+                new_config = NodeConfig(
+                    flow_id=flow_id,
+                    node_id=node_id,
+                    config_name=config_name,
+                    config_param=config_param
+                )
+                db.add(new_config)
+            db.commit()
+
+            # 如果前端已经传了有效的node_schema，那么就直接删除原来的，再存入前端传来的就行了，不需要退点
+            db.query(NodeSchema).filter(
+                NodeSchema.node_id == node_id).delete()
+            db.commit()
+            if len(node_schema) > 0:
+                new_node_schema = NodeSchema(
+                    node_id=node_id, node_schema=node_schema, created_at=datetime.now().isoformat(), updated_at=datetime.now().isoformat())
+                db.add(new_node_schema)
+                db.commit()
+            else:
+                # 推断 schema
+                print('config changed , infer schema from flowchart_data')
+                infer_schema_from_flowchart_data(
+                    flow_id, node_id)
+                db.commit()
+
+            # 更新配置状态
+            db.query(NodeConfigStatus).filter(
+                NodeConfigStatus.flow_id == flow_id,
+                NodeConfigStatus.node_id == node_id
+            ).update({'config_status': 'ok'})
+
+            db.commit()
+            print("All operations committed successfully.")
+
+        except SQLAlchemyError as e:
+            db.rollback()
+            print(f"Transaction failed: {e}")
 
     return jsonify({"status": "saved"}), 200
 
@@ -208,6 +260,52 @@ def delete_dependency():
         db.commit()
     return jsonify({"status": "deleted", "deleted_rows": deleted}), 200
 
+# check flow all nodes config status
+
+
+@app.route('/check_flow_all_nodes_config_status', methods=['POST'])
+def check_flow_all_nodes_config_status():
+    data = request.json
+    flow_id = data.get('flow_id')
+    with SessionLocal() as db:
+        flow_all_nodes_config_status = db.query(NodeConfigStatus).filter(
+            NodeConfigStatus.flow_id == flow_id).all()
+        print(f"flow_all_nodes_config_status: {flow_all_nodes_config_status}")
+        # 如果node_config_status为空，那么就返回ok
+        if not flow_all_nodes_config_status:
+            return jsonify({"status": "ok", "node_config_status": "ok"}), 200
+        else:
+            # 如果存在节点的config_status不是ok，那么就返回error
+            for node_config_status in flow_all_nodes_config_status:
+                if node_config_status.config_status != 'ok':
+                    return jsonify({"status": "error", "node_config_status": "more than one node config status is not ok"}), 200
+            return jsonify({"status": "ok", "node_config_status": "ok"}), 200
+
+
+# check 1 node config status
+@app.route('/check_node_config_status', methods=['POST'])
+def check_node_config_status():
+    data = request.json
+    flow_id = data.get('flow_id')
+    with SessionLocal() as db:
+        # 如果node_id不为空，那么就查询该节点的node_config_status
+        node_config_status = db.query(NodeConfigStatus).filter(
+            NodeConfigStatus.flow_id == flow_id,
+            NodeConfigStatus.node_id == data.get('node_id'))
+        # 如果没查到该节点的配置状态就直接告知可以添加
+        if not node_config_status:
+            return jsonify({"status": "ok", "node_config_status": "ok"}), 200
+        else:
+            # 如果查到了，那么只能有一条，并且config_status是ok，否则就告知前端不能添加新的
+            # TypeError: object of type 'Query' has no len()
+            if node_config_status.count() > 1:
+                return jsonify({"status": "error", "node_config_status": "more than one node config status"}), 200
+            elif node_config_status.first().config_status != 'ok':
+                return jsonify({"status": "waiting", "node_config_status": "node config status is not ok"}), 200
+            else:
+                return jsonify({"status": "ok", "node_config_status": node_config_status.first().config_status}), 200
+
+
 # Save Node
 
 
@@ -224,9 +322,41 @@ def save_node():
                         created_at=data.get('created_at'))
             db.add(node)
             db.commit()
+        # 新增node_config_status
+        new_node_config_status = NodeConfigStatus(
+            flow_id=data['flow_id'], node_id=data['id'], config_status='waiting', created_at=datetime.now().isoformat(), updated_at=datetime.now().isoformat())
+        db.add(new_node_config_status)
+        db.commit()
     return jsonify({'status': 'saved'})
 
-# get node schema
+
+# delete node
+
+
+@app.route('/delete_node', methods=['POST'])
+def delete_node():
+    data = request.json
+    with SessionLocal() as db:
+        # 删除node
+        db.query(Node).filter(Node.id == data['nodeId']).delete()
+        db.commit()
+        # 删除node_config_status
+        db.query(NodeConfigStatus).filter(
+            NodeConfigStatus.node_id == data['nodeId']).delete()
+        db.commit()
+        # 删除node_schema
+        db.query(NodeSchema).filter(
+            NodeSchema.node_id == data['nodeId']).delete()
+        db.commit()
+        # 删除node_dependencies,source或者target是data['nodeId']的都删除
+        db.query(Dependency).filter(
+            (Dependency.source == data['nodeId']) | (Dependency.target == data['nodeId'])).delete()
+        db.commit()
+        # 删除node_config
+        db.query(NodeConfig).filter(
+            NodeConfig.node_id == data['nodeId']).delete()
+        db.commit()
+    return jsonify({'status': 'deleted'})
 
 
 def infer_schema_from_flowchart_data(flow_id, node_id):

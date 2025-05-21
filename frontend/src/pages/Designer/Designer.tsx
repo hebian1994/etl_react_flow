@@ -81,6 +81,36 @@ const Designer: React.FC = () => {
 
         setSelectedNode(node);
 
+        // 如果该节点的类型不是File Input，那么他肯定要有前置节点，也就是必须有它作为target的边，否则弹出提示先建立连线
+        // 要先确有连线      
+        if (node.data.type !== 'File Input') {
+            console.log('edges', edges);
+            const filteredEdges = edges.filter((e: any) => e.target === node.id);
+            if (filteredEdges.length === 0) {
+                alert('请先建立连线');
+                // 
+                setShowBox2(false);
+                setShowBox4(false);
+                return;
+            }
+        }
+
+
+        // 查看该节点是否允许双击来查看配置栏和schema和preview_data
+        // 查询该节点的node_config_status
+        const node_config_status = await api.post(`/check_node_config_status`, {
+            flow_id: flowId,
+            node_id: node.id,
+        });
+        console.log("node_config_status", node_config_status.data);
+        if (node_config_status.data.status !== 'ok') {
+            // 说明该节点还没有完成配置，那么只需要弹出配置栏就行了，而不需要get_node_config和get_node_schema和preview_data
+            setConfigForm({});
+            setNodeSchema([]);
+            setPreviewData([]);
+            setShowBox2(true);
+            return;
+        }
 
 
         // should send request to get config @app.route('/get_node_config', methods=['POST'])
@@ -93,14 +123,13 @@ const Designer: React.FC = () => {
         console.log("node_schema", node_schema.data);
         setNodeSchema(node_schema.data);
 
-        setShowBox2(true);
-
-
-
-
         // 如果有 dataPreview 数据，展示底部面板
         const res = await api.post(`/preview_data`, payload);
         console.log(res.data);
+
+
+        setShowBox2(true);
+
 
         if (res.data.length > 0) {
             setShowBox4(true);
@@ -128,8 +157,31 @@ const Designer: React.FC = () => {
         console.log("save_config_payload", save_config_payload);
 
         try {
-            await api.post(`/save_config`, save_config_payload);
+            // 先保存整个flow，这样推断类型的时候才能构建DAG
+            await api.post(`/save_flow`, {
+                flow_id: flowId,
+                nodes,
+                edges,
+            });
+
+            // 保存节点配置
+            await api.post(`/save_node_config`, save_config_payload);
             alert('配置保存成功');
+
+            // 如果节点的配置保存成功，说明节点的schema已经更新了，那么就更新本地节点数据
+            const node_schema = await api.post(`/get_node_schema`, {
+                flow_id: flowId,
+                node_id: selectedNode.id,
+            });
+            setNodeSchema(node_schema.data);
+            console.log("node_schema", node_schema.data);
+
+            // 如果节点的配置保存成功，说明节点的preview_data已经更新了，那么就更新本地节点数据
+            const res = await api.post(`/preview_data`, {
+                flow_id: flowId,
+                node_id: selectedNode.id,
+            });
+            setPreviewData(res.data);
 
             // 同时更新本地节点数据
             setSelectedNode(prev => {
@@ -154,6 +206,10 @@ const Designer: React.FC = () => {
     const onDrop = useCallback(
         async (event: React.DragEvent) => {
             event.preventDefault();
+
+            console.log("event", event.dataTransfer.getData('application/reactflow'));
+
+
             const type = event.dataTransfer.getData('application/reactflow');
             const bounds = (reactFlowWrapper.current as any).getBoundingClientRect();
 
@@ -170,14 +226,35 @@ const Designer: React.FC = () => {
                 data: { label: type, type, config: {} },
             };
 
+            // 查询node_config_status
+            const node_config_status = await api.post(`/check_flow_all_nodes_config_status`, {
+                flow_id: flowId,
+            });
+            console.log("node_config_status", node_config_status.data);
+            console.log("nodes", nodes);
+
+            // 如果该节点的config_status不是ok，也return
+            if (node_config_status.data.status !== 'ok') {
+                alert('请先完成所有节点的配置');
+                return;
+            }
+
+
+
             setNodes((nds) => [...nds, newNode]);
 
-            // 通知后端新节点
+            // 保存节点
             await api.post(`/save_node`, {
                 flow_id: flowId,
                 id,
                 type,
                 created_at: new Date().toISOString(),
+            });
+            // 保存flow
+            await api.post(`/save_flow`, {
+                flow_id: flowId,
+                nodes,
+                edges,
             });
         },
         [flowId]
@@ -197,6 +274,16 @@ const Designer: React.FC = () => {
                 source: params.source,
                 target: params.target,
             });
+            // 保存flow.这里为什么没保存成功？
+            const updatedEdges = addEdge(params, edges);
+
+            await api.post(`/save_flow`, {
+                flow_id: flowId,
+                nodes,
+                edges: updatedEdges,
+            });
+            setEdges(updatedEdges);
+
         },
         [flowId]
     );
@@ -208,10 +295,12 @@ const Designer: React.FC = () => {
         setNodes((nds) => nds.filter((n) => n.id !== contextMenu.nodeId));
         setEdges((eds) => eds.filter((e) => e.source !== contextMenu.nodeId && e.target !== contextMenu.nodeId));
 
-        await api.post(`/delete_node_dependencies`, {
+        // delete node
+        await api.post(`/delete_node`, {
             flow_id: flowId,
             nodeId: contextMenu.nodeId,
         });
+
         // 同时也保存flow
         await api.post(`/save_flow`, {
             flow_id: flowId,

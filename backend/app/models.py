@@ -42,3 +42,12 @@ class NodeSchema(Base):
     node_schema = Column(String)
     created_at = Column(String)
     updated_at = Column(String)
+
+
+class NodeConfigStatus(Base):
+    __tablename__ = 'node_config_status'
+    flow_id = Column(String, primary_key=True)
+    node_id = Column(String, primary_key=True)
+    config_status = Column(String)
+    created_at = Column(String)
+    updated_at = Column(String)

@@ -66,6 +66,17 @@ def init_db():
             updated_at TEXT
         )
     ''')
+    
+    # 再创建一个node_config_status表，代表这个节点是否完成了配置。
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS node_config_status (
+            flow_id TEXT PRIMARY KEY,
+            node_id TEXT PRIMARY KEY,
+            config_status TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        )
+    ''')
 
     conn.commit()
     conn.close()

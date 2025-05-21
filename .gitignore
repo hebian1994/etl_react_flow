@@ -1,1 +1,9 @@
 frontend/node_modules/ 
+**/.idea/**
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.pyw
+**/*.pyz
+**/*.pywz
+   
