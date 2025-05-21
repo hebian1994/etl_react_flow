@@ -64,6 +64,7 @@ const Designer: React.FC = () => {
         console.log(process.env.NODE_ENV)
         const fetchFlow = async () => {
             const res = await api.get(`/get_flow/${flowId}`);
+            console.log('res', res.data);
             if (res.data.nodes) setNodes(res.data.nodes);
             if (res.data.edges) setEdges(res.data.edges);
         };
@@ -85,13 +86,29 @@ const Designer: React.FC = () => {
         // 要先确有连线      
         if (node.data.type !== 'File Input') {
             console.log('edges', edges);
-            const filteredEdges = edges.filter((e: any) => e.target === node.id);
-            if (filteredEdges.length === 0) {
+            // 直接去后端查该节点的连线是否满足要求
+            const res = await api.post(`/get_node_edges`, {
+                flow_id: flowId,
+                node_id: node.id,
+            });
+            console.log('res', res.data);
+            // 如果res.data.edges.length为0，说明该节点没有连线，那么弹出提示先建立连线
+            if (res.data.edges.length === 0) {
                 alert('请先建立连线');
                 // 
                 setShowBox2(false);
                 setShowBox4(false);
                 return;
+            } else {
+                // 如果res.data.edges.length不为0，说明该节点有连线，那么就继续
+                // 还要检查是否有该节点作为target的
+                const targetEdges = res.data.edges.filter((e: any) => e.target === node.id);
+                if (targetEdges.length === 0) {
+                    alert('请先建立连线');
+                    setShowBox2(false);
+                    setShowBox4(false);
+                    return;
+                }
             }
         }
 

@@ -209,6 +209,26 @@ def get_node_config():
 
         return jsonify(config_dict)
 
+
+# Get Node Edges
+@app.route('/get_node_edges', methods=['POST'])
+def get_node_edges():
+    data = request.json
+    node_id = data.get('node_id')
+    with SessionLocal() as db:
+        # 返回source或者target是node_id的边
+        edges = db.query(Dependency).filter(
+            (Dependency.source == node_id) | (Dependency.target == node_id)).all()
+        # 查询到的应该是多行数据，那么需要转成数组
+        res = []
+        for edge in edges:
+            print(f"edge: {edge}")
+            print(f"edge.source: {edge.source}")
+            print(f"edge.target: {edge.target}")
+            res.append({"source": edge.source, "target": edge.target})
+
+        return jsonify({"edges": res})
+
 # Add Dependency
 
 
