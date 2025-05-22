@@ -101,6 +101,14 @@ class PolarsBackend(ETLBackend):
         try:
             df_joined = df1.join(df2, left_on=left_on,
                                  right_on=right_on, how="left")
+            #
+            left_cols = df1.columns
+            right_cols = df2.columns
+            right_final = left_cols
+            for col in right_cols:
+                if col not in left_cols:
+                    right_final.append(col)
+            df_joined = df_joined.select(right_final)
             return df_joined
         except Exception as e:
             print(f"Join failed: {e}")

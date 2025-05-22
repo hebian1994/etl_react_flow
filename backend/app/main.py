@@ -1,3 +1,4 @@
+from models import NodeConfigOptions
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from models import NodeConfigStatus
@@ -102,26 +103,29 @@ def save_node_config():
     print(f"configForm: {configForm}")
     print(f"node_schema: {node_schema}")
 
-    # 从nodes中查出node的type
+    # 检查该节点的节点类型所需要的配置项是否都填好了
     with SessionLocal() as db:
         node_type = db.query(Node).filter(Node.id == node_id).first().type
-        if node_type == 'File Input':
-            # 需要确保提交了path
-            if 'path' not in configForm:
-                return jsonify({"status": "error", "node_config_status": "path is required"}), 200
-            elif configForm['path'] == '':
-                return jsonify({"status": "error", "node_config_status": "path is empty"}), 200
-        elif node_type == 'Filter':
-            # 需要确保提交了filter_condition
-            if 'condition' not in configForm:
-                return jsonify({"status": "error", "node_config_status": "condition is required"}), 200
-            elif configForm['condition'] == '':
-                return jsonify({"status": "error", "node_config_status": "condition is empty"}), 200
+        if node_type:
+            # 从node_config_options中查出node_type的配置选项
+            node_config_options = db.query(NodeConfigOptions).filter(
+                NodeConfigOptions.node_type == node_type).all()
+            print(f"node_config_options: {node_config_options}")
+
+            for node_config_option in node_config_options:
+                print(f"node_config_option: {node_config_option}")
+                print(
+                    f"node_config_option.node_config_option: {node_config_option.node_config_option}")
+                cur_config_option = node_config_option.node_config_option
+                if cur_config_option and cur_config_option != 'NA' and cur_config_option not in configForm:
+                    return jsonify({"status": "error", "node_config_status": f"{cur_config_option} is required"}), 200
+                else:
+                    if configForm[cur_config_option] == '':
+                        return jsonify({"status": "error", "node_config_status": f"{cur_config_option} is empty"}), 200
         else:
             raise Exception(f"node_type {node_type} is not supported")
 
     # 所有的数据更改应该在同一个事务内
-    with SessionLocal() as db:
         try:
             # 删除旧配置
             db.query(NodeConfig).filter(NodeConfig.node_id == node_id).delete()
@@ -343,8 +347,12 @@ def save_node():
             db.add(node)
             db.commit()
         # 新增node_config_status
+        if data.get('type') == 'Data Viewer':
+            config_status = 'ok'
+        else:
+            config_status = 'waiting'
         new_node_config_status = NodeConfigStatus(
-            flow_id=data['flow_id'], node_id=data['id'], config_status='waiting', created_at=datetime.now().isoformat(), updated_at=datetime.now().isoformat())
+            flow_id=data['flow_id'], node_id=data['id'], config_status=config_status, created_at=datetime.now().isoformat(), updated_at=datetime.now().isoformat())
         db.add(new_node_config_status)
         db.commit()
     return jsonify({'status': 'saved'})
@@ -511,13 +519,26 @@ def preview_data():
     if data['node_id'] in res:
         # polars 的 head 方法返回的是一个 DataFrame
         # 需要转换为字典列表
-        res_data = res[data['node_id']].head(5).to_dicts()
+        print(f"res[data['node_id']]: {res[data['node_id']]}")
+        node_df = res[data['node_id']]
+        res_data = node_df.head(5).to_dicts()
+        res_data_cols = node_df.columns
+        print(f"res_data: {res_data}")
+        response = {
+            "data": res_data,
+            "cols": res_data_cols
+        }
     else:
         print(f"{data['node_id']} is not in res")
         res_data = []
+        res_data_cols = []
+        response = {
+            "data": res_data,
+            "cols": res_data_cols
+        }
 
     # return jsonify({'status': 'ok'})
-    return jsonify(res_data)
+    return jsonify(response)
 
 
 @app.route('/compute_node', methods=['POST'])

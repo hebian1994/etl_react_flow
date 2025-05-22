@@ -250,6 +250,7 @@ def build_flowchart_data(flow_id):
             elif node_type == "Data Viewer":
                 params = {'node_id': node_id}
             else:
+                print(f"Unknown node type: {node_type}")
                 raise ValueError(f"Unknown node type: {node_type}")
 
             nodes.append({

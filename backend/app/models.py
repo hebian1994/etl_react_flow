@@ -51,3 +51,11 @@ class NodeConfigStatus(Base):
     config_status = Column(String)
     created_at = Column(String)
     updated_at = Column(String)
+
+
+class NodeConfigOptions(Base):
+    __tablename__ = 'node_config_options'
+    node_type = Column(String, primary_key=True)
+    node_config_option = Column(String)
+    created_at = Column(String)
+    updated_at = Column(String)

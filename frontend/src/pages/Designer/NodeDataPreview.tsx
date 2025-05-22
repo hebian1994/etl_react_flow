@@ -12,14 +12,22 @@ import {
     Stack
 } from '@mui/material';
 
+type PreviewDataType = {
+    cols: string[];
+    data: Array<Record<string, any>>;
+};
+
 type NodeDataPreviewProps = {
     show: boolean;
-    previewData: Array<Record<string, any>> | null;
-    setPreviewData: React.Dispatch<React.SetStateAction<Array<Record<string, any>> | null>>;
+    previewData: PreviewDataType | null;
+    setPreviewData: React.Dispatch<React.SetStateAction<PreviewDataType | null>>;
 };
 
 const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ show, previewData, setPreviewData }) => {
     if (!show) return null;
+
+    const cols = previewData?.cols || [];
+    const data = previewData?.data || [];
 
     return (
         <Paper
@@ -37,17 +45,17 @@ const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ show, previewData, se
                 <Typography variant="h6" component="div">
                     数据预览
                 </Typography>
-                <Button variant="outlined" color="secondary" onClick={() => setPreviewData([])}>
+                <Button variant="outlined" color="secondary" onClick={() => setPreviewData(null)}>
                     关闭
                 </Button>
             </Stack>
 
-            {previewData && previewData.length > 0 ? (
+            {data.length > 0 && cols.length > 0 ? (
                 <Box>
                     <Table size="small">
                         <TableHead>
                             <TableRow>
-                                {Object.keys(previewData[0]).map((col) => (
+                                {cols.map((col) => (
                                     <TableCell key={col} sx={{ fontWeight: 'bold' }}>
                                         {col}
                                     </TableCell>
@@ -55,10 +63,12 @@ const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ show, previewData, se
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {previewData.map((row, idx) => (
+                            {data.map((row, idx) => (
                                 <TableRow key={idx} hover>
-                                    {Object.values(row).map((val, i) => (
-                                        <TableCell key={i}>{String(val)}</TableCell>
+                                    {cols.map((col) => (
+                                        <TableCell key={col}>
+                                            {row[col] !== null && row[col] !== undefined ? String(row[col]) : ''}
+                                        </TableCell>
                                     ))}
                                 </TableRow>
                             ))}

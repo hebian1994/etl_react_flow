@@ -66,7 +66,7 @@ def init_db():
             updated_at TEXT
         )
     ''')
-    
+
     # 再创建一个node_config_status表，代表这个节点是否完成了配置。
     c.execute('''
         CREATE TABLE IF NOT EXISTS node_config_status (
@@ -76,6 +76,17 @@ def init_db():
             created_at TEXT,
             updated_at TEXT
         )
+    ''')
+
+    # 再创建一个node_config_options表，代表每种节点可以配置的选项。
+    c.execute('''
+            CREATE TABLE IF NOT EXISTS node_config_options (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                node_type TEXT,
+                node_config_option TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
     ''')
 
     conn.commit()

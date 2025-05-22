@@ -53,7 +53,10 @@ const Designer: React.FC = () => {
     const [selectedNode, setSelectedNode] = useState<Node | null>(null);
     const [modalType, setModalType] = useState<'file' | 'viewer' | null>(null);
     const [configForm, setConfigForm] = useState<Record<string, any>>({});
-    const [previewData, setPreviewData] = useState<any[] | null>(null);
+    const [previewData, setPreviewData] = useState<{
+        cols: string[];
+        data: Array<Record<string, any>>;
+    } | null>(null);
 
 
 
@@ -108,6 +111,14 @@ const Designer: React.FC = () => {
                     setShowBox2(false);
                     setShowBox4(false);
                     return;
+                } else if (node.data.type === 'Left Join') {
+                    // 如果该节点是Left Join,那么他作为target的连线数量必须大于1    
+                    if (targetEdges.length < 2) {
+                        alert('Left Join节点需要至少2个连线');
+                        setShowBox2(false);
+                        setShowBox4(false);
+                        return;
+                    }
                 }
             }
         }
@@ -124,7 +135,7 @@ const Designer: React.FC = () => {
             // 说明该节点还没有完成配置，那么只需要弹出配置栏就行了，而不需要get_node_config和get_node_schema和preview_data
             setConfigForm({});
             setNodeSchema([]);
-            setPreviewData([]);
+            setPreviewData(null);
             setShowBox2(true);
             return;
         }
@@ -142,17 +153,17 @@ const Designer: React.FC = () => {
 
         // 如果有 dataPreview 数据，展示底部面板
         const res = await api.post(`/preview_data`, payload);
-        console.log(res.data);
+        console.log("res.data", res.data);
 
 
         setShowBox2(true);
 
 
-        if (res.data.length > 0) {
+        if (res.data.data.length > 0) {
             setShowBox4(true);
             setPreviewData(res.data);
         } else {
-            setPreviewData([]);
+            setPreviewData(null);
         }
     }, []);
 
@@ -199,6 +210,7 @@ const Designer: React.FC = () => {
                 node_id: selectedNode.id,
             });
             setPreviewData(res.data);
+            setShowBox4(true);
 
             // 同时更新本地节点数据
             setSelectedNode(prev => {
@@ -250,7 +262,7 @@ const Designer: React.FC = () => {
             console.log("node_config_status", node_config_status.data);
             console.log("nodes", nodes);
 
-            // 如果该节点的config_status不是ok，也return
+            // 如果all_nodes_config_status不是ok，也return
             if (node_config_status.data.status !== 'ok') {
                 alert('请先完成所有节点的配置');
                 return;
@@ -285,25 +297,31 @@ const Designer: React.FC = () => {
     // 连线
     const onConnect = useCallback(
         async (params: Edge | Connection) => {
-            setEdges((eds) => addEdge(params, eds));
-            await api.post(`/add_dependency`, {
-                flow_id: flowId,
-                source: params.source,
-                target: params.target,
-            });
-            // 保存flow.这里为什么没保存成功？
-            const updatedEdges = addEdge(params, edges);
+            setEdges((eds) => {
+                const updated = addEdge(params, eds);
 
-            await api.post(`/save_flow`, {
-                flow_id: flowId,
-                nodes,
-                edges: updatedEdges,
-            });
-            setEdges(updatedEdges);
+                // 调用 API 发送连线数据
+                api.post(`/add_dependency`, {
+                    flow_id: flowId,
+                    source: params.source,
+                    target: params.target,
+                });
 
+                // 同步保存 flow，带上当前 nodes 和最新连线
+                api.post(`/save_flow`, {
+                    flow_id: flowId,
+                    nodes,
+                    edges: updated,
+                });
+
+                return updated;
+            });
+
+            console.log("params", params);
         },
-        [flowId]
+        [flowId, nodes]
     );
+
 
     // 删除节点
     const deleteNode = async () => {
@@ -509,6 +527,7 @@ const Designer: React.FC = () => {
                 previewData={previewData}
                 setPreviewData={setPreviewData}
             />
+
         </div>
     );
 };

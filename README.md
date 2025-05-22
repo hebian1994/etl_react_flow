@@ -34,6 +34,7 @@ PolarsBackend
 
 
 <!-- todo -->
-<!-- POLASR backend -->
+<!-- big data test -->
 
-![Designer页面](doc/pic/0519.png)
+![Designer页面](doc/pic/Designer0522.png)
+![Dashboard页面](doc/pic/Dashboard0522.png)
