@@ -8,12 +8,14 @@ import {
   Card,
   CardActions,
   CardContent,
-  Grid,
   Typography,
   Stack
 } from '@mui/material';
+import Grid from '@mui/material/Grid'; // ✅ 正确
+
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import { DeleteIcon } from 'lucide-react';
 
 export default function FlowList() {
   const [flows, setFlows] = useState<any[]>([]);
@@ -29,6 +31,15 @@ export default function FlowList() {
     navigate(`/flow/${newId}`);
   };
 
+  const handleDelete = async (id: string) => {
+    const res = await axios.post(`http://localhost:5000/delete_flow`, {
+      flow_id: id
+    });
+    if (res.status === 200) {
+      fetchFlows();
+    }
+  };
+
   useEffect(() => {
     fetchFlows();
   }, []);
@@ -42,27 +53,46 @@ export default function FlowList() {
         </Button>
       </Stack>
 
-      <Grid container spacing={3}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)', // 三列布局，列宽完全一致
+          gap: 3,
+        }}
+      >
         {flows.map((flow) => (
-          <Grid key={flow.id}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  {flow.name || `流程 ${flow.id}`}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  节点数量: {flow.nodeCount}
-                </Typography>
-              </CardContent>
-              <CardActions sx={{ mt: 'auto', justifyContent: 'flex-end' }}>
-                <Button size="small" startIcon={<EditIcon />} onClick={() => navigate(`/flow/${flow.id}`)}>
-                  编辑
-                </Button>
-              </CardActions>
-            </Card>
-          </Grid>
+          <Card
+            key={flow.id}
+            sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+          >
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                {flow.name || `流程 ${flow.id}`}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                节点数量: {flow.nodeCount}
+              </Typography>
+            </CardContent>
+            <CardActions sx={{ mt: 'auto', justifyContent: 'flex-end' }}>
+              <Button
+                size="small"
+                startIcon={<EditIcon />}
+                onClick={() => navigate(`/flow/${flow.id}`)}
+              >
+                编辑
+              </Button>
+              <Button
+                size="small"
+                startIcon={<DeleteIcon />}
+                onClick={() => handleDelete(flow.id)}
+              >
+                删除
+              </Button>
+            </CardActions>
+          </Card>
         ))}
-      </Grid>
+      </Box>
+
     </Box>
   );
 }

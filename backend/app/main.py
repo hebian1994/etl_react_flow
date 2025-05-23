@@ -42,6 +42,39 @@ def save_flow():
             db.commit()
     return jsonify({'status': 'ok'})
 
+
+# Delete Flow
+@app.route('/delete_flow', methods=['POST'])
+def delete_flow():
+    data = request.json
+    flow_id = data.get('flow_id')
+    with SessionLocal() as db:
+        # 查找出FLOW，解释出包含的所有NODE_ID，然后删除
+        flow = db.query(Flow).filter(Flow.flow_id == flow_id).first()
+        if flow:
+            nodes_array = json.loads(flow.flow_data)['nodes']
+            node_ids = [node['id'] for node in nodes_array]
+            for node_id in node_ids:
+                db.query(Node).filter(Node.id == node_id).delete()
+                db.commit()
+            db.query(Flow).filter(Flow.flow_id == flow_id).delete()
+            db.commit()
+            # 删除该FLOW中所有节点，节点配置，节点配置状态，节点依赖，节点schema
+            db.query(Node).filter(Node.id.in_(node_ids)).delete()
+            db.commit()
+            db.query(NodeConfig).filter(NodeConfig.flow_id == flow_id).delete()
+            db.commit()
+            db.query(NodeConfigStatus).filter(
+                NodeConfigStatus.flow_id == flow_id).delete()
+            db.commit()
+            db.query(Dependency).filter(Dependency.source.in_(
+                node_ids) | Dependency.target.in_(node_ids)).delete()
+            db.commit()
+            db.query(NodeSchema).filter(
+                NodeSchema.node_id.in_(node_ids)).delete()
+            db.commit()
+    return jsonify({'status': 'ok'})
+
 # Get All Flows
 
 
