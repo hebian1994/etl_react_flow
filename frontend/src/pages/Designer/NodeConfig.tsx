@@ -40,6 +40,7 @@ const NodeConfig: React.FC<Props> = ({
 }) => {
     const nodeType = selectedNode?.data.type ?? "";
     const ConfigComponent = NodeConfigComponentMap[nodeType];
+    console.log("ConfigComponent", ConfigComponent);
 
     const handleFieldChange = (key: string, value: string) => {
         setConfigForm((prev: any) => ({

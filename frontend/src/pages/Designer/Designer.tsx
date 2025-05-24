@@ -82,7 +82,6 @@ const Designer: React.FC = () => {
             node_id: node.id,
         };
 
-        setSelectedNode(node);
 
 
         // 获取节点详情（包括连线、配置状态、config/schema/data）
@@ -110,6 +109,9 @@ const Designer: React.FC = () => {
         } = response.data;
 
         // 如果配置完成，展示 config/schema/preview
+        setSelectedNode(node);
+
+        console.log("node_config", node_config);
         setConfigForm(node_config || {});
         setNodeSchema(node_schema || []);
         setPreviewData(preview_data?.data?.length > 0 ? preview_data : null);
