@@ -1,12 +1,9 @@
 import os
 import polars as pl
 import pandas as pd
-from models import NodeConfig
-from db import SessionLocal
 
 
 def get_file_schema(params, backend_name="polars"):
-
     nrows = 2
 
     df = read_csv(params["path"], backend=backend_name, nrows=nrows)

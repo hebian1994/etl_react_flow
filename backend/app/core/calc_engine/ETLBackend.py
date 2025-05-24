@@ -1,26 +1,25 @@
-from models import NodeSchema
-from file_utils import read_csv
-from lark import Lark, Transformer
+from core.calc_engine.lark_util import parser
+from utils.db_utils import get_db_session
+from utils.file_utils import read_csv
 import polars as pl
-from db import SessionLocal  # 你创建 SQLAlchemy Session 的方法
-from models import Flow, Node, NodeConfig  # 你需要确保这些模型存在
-from sqlalchemy.orm import Session
-from db import DATABASE_FILE
-import sqlite3
 import json
 import pandas as pd
-import networkx as nx
-import matplotlib.pyplot as plt
-import os
+
+from models.config import NodeSchema
+
 
 # ========== 后端基类接口 ==========
 
 
 class ETLBackend:
     def read_csv(self, params): raise NotImplementedError
+
     def filter(self, df, params): raise NotImplementedError
+
     def left_join(self, df1, df2, params): raise NotImplementedError
+
     def aggregate(self, df, params): raise NotImplementedError
+
     def output(self, df, params): return df  # 默认直接返回
 
 
@@ -34,7 +33,7 @@ class PolarsBackend(ETLBackend):
         # 获取node_id
         node_id = params.get("node_id", None)
         # 从db中获取node_schema
-        with SessionLocal() as db:
+        with get_db_session() as db:
             node_schema = db.query(NodeSchema).filter(
                 NodeSchema.node_id == node_id).first()
             if node_schema:
@@ -77,7 +76,6 @@ class PolarsBackend(ETLBackend):
         if not condition:
             return df
 
-        from lark_util import parser
         print(f"parser: {parser}")
         expr = parser.parse(condition)
         print(f"expr: {expr}")

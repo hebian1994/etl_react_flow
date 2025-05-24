@@ -1,19 +1,14 @@
-from models import NodeSchema
-from file_utils import read_csv
-from lark import Lark, Transformer
-import polars as pl
-from db import SessionLocal  # 你创建 SQLAlchemy Session 的方法
-from models import Flow, Node, NodeConfig  # 你需要确保这些模型存在
-from sqlalchemy.orm import Session
-from db import DATABASE_FILE
-import sqlite3
+
 import json
-import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
-import os
-from ETLBackend import PandasBackend, PolarsBackend
-from ETLBackend import ETLBackend
+from core.calc_engine.ETLBackend import PandasBackend, PolarsBackend
+from core.calc_engine.ETLBackend import ETLBackend
+from models.config import NodeConfig
+from models.flow import Flow
+from models.node import Node
+from utils.db_utils import get_db_session
+
 
 # ========== 操作调度器 ==========
 
@@ -40,6 +35,7 @@ class ETLOperator:
 
     def run_left_join(self, op_name, input_df1, input_df2, params):
         return self.dispatch[op_name](input_df1, input_df2, params)
+
 
 # ========== DAG 执行器 ==========
 
@@ -147,7 +143,7 @@ def infer_schema_dag(nodes, edges, target_node_id=None, backend_name="polars"):
             for kv in json.loads(agg_config):
                 agg_cols.append(kv['column'])
 
-            total_cols = group_by_cols+agg_cols
+            total_cols = group_by_cols + agg_cols
 
             schema = [col for col in input_schemas[0]
                       if col["name"] in total_cols]
@@ -174,6 +170,7 @@ def infer_schema_dag(nodes, edges, target_node_id=None, backend_name="polars"):
 
     return schema_results[target_node_id] if target_node_id else schema_results
 
+
 # ========== 可视化 ==========
 
 
@@ -191,11 +188,9 @@ def draw_dag(G):
 def build_flowchart_data(flow_id):
     print(f"flow_id: {flow_id}")
 
-    session: Session = SessionLocal()
-
-    try:
+    with get_db_session() as db:
         # ① 获取指定 flow_id 的 flow_data
-        flow_entry = session.query(Flow).filter(
+        flow_entry = db.query(Flow).filter(
             Flow.flow_id == flow_id).first()
         if not flow_entry:
             raise ValueError(f"Flow ID {flow_id} not found.")
@@ -205,69 +200,66 @@ def build_flowchart_data(flow_id):
 
         # ② 获取所有节点类型
         node_type_map = {
-            node.id: node.type for node in session.query(Node).all()}
+            node.id: node.type for node in db.query(Node).all()}
 
         # ③ 获取所有节点配置
         node_config_map = {}
-        configs = session.query(NodeConfig).all()
-        for config in configs:
-            node_id = config.node_id
-            if node_id not in node_config_map:
-                node_config_map[node_id] = []
-            node_config_map[node_id].append(
-                {config.config_name: config.config_param})
+        configs = db.query(NodeConfig).all()
+    for config in configs:
+        node_id = config.node_id
+        if node_id not in node_config_map:
+            node_config_map[node_id] = []
+        node_config_map[node_id].append(
+            {config.config_name: config.config_param})
 
-        print(f"node_config_map: {node_config_map}")
+    print(f"node_config_map: {node_config_map}")
 
-        # ④ 构建 nodes 数据
-        nodes = []
-        print(f"target_flow: {target_flow}")
-        for node in target_flow['nodes']:
-            node_id = node['id']
-            node_type = node_type_map.get(node_id, "unknown")
-            config_param_arr = node_config_map.get(node_id, [])
-            print(f"config_param_arr: {config_param_arr}")
+    # ④ 构建 nodes 数据
+    nodes = []
+    print(f"target_flow: {target_flow}")
+    for node in target_flow['nodes']:
+        node_id = node['id']
+        node_type = node_type_map.get(node_id, "unknown")
+        config_param_arr = node_config_map.get(node_id, [])
+        print(f"config_param_arr: {config_param_arr}")
 
+        params = {'node_id': node_id}
+        if node_type == "File Input":
+            for config in config_param_arr:
+                if 'path' in config:
+                    params["path"] = config['path']
+        elif node_type == "Filter":
+            for config in config_param_arr:
+                if 'condition' in config:
+                    params["condition"] = config['condition']
+        elif node_type == "Left Join":
+            for config in config_param_arr:
+                if 'left_join_on' in config:
+                    params["left_join_on"] = config['left_join_on']
+        elif node_type == "Aggregate":
+            for config in config_param_arr:
+                if 'groupBy' in config:
+                    params["groupBy"] = config['groupBy']
+                if 'aggregations' in config:
+                    params["aggregations"] = config['aggregations']
+        elif node_type == "Data Viewer":
             params = {'node_id': node_id}
-            if node_type == "File Input":
-                for config in config_param_arr:
-                    if 'path' in config:
-                        params["path"] = config['path']
-            elif node_type == "Filter":
-                for config in config_param_arr:
-                    if 'condition' in config:
-                        params["condition"] = config['condition']
-            elif node_type == "Left Join":
-                for config in config_param_arr:
-                    if 'left_join_on' in config:
-                        params["left_join_on"] = config['left_join_on']
-            elif node_type == "Aggregate":
-                for config in config_param_arr:
-                    if 'groupBy' in config:
-                        params["groupBy"] = config['groupBy']
-                    if 'aggregations' in config:
-                        params["aggregations"] = config['aggregations']
-            elif node_type == "Data Viewer":
-                params = {'node_id': node_id}
-            else:
-                print(f"Unknown node type: {node_type}")
-                raise ValueError(f"Unknown node type: {node_type}")
+        else:
+            print(f"Unknown node type: {node_type}")
+            raise ValueError(f"Unknown node type: {node_type}")
 
-            nodes.append({
-                "id": node_id,
-                "type": node_type,
-                "params": params
-            })
+        nodes.append({
+            "id": node_id,
+            "type": node_type,
+            "params": params
+        })
 
-        print("nodes", nodes)
+    print("nodes", nodes)
 
-        # ⑤ 构建 edges 数据
-        edges = [
-            {"source": edge['source'], "target": edge['target']}
-            for edge in target_flow.get('edges', [])
-        ]
+    # ⑤ 构建 edges 数据
+    edges = [
+        {"source": edge['source'], "target": edge['target']}
+        for edge in target_flow.get('edges', [])
+    ]
 
-        return {"nodes": nodes, "edges": edges}
-
-    finally:
-        session.close()
+    return {"nodes": nodes, "edges": edges}

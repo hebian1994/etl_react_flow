@@ -91,11 +91,13 @@ const Designer: React.FC = () => {
         if (res_status === 'error') {
             alert(response.data.message);
             if (response.data.error_code === 'node_config_not_ok') {
+                setSelectedNode(node);
                 setConfigForm({});
                 setNodeSchema([]);
                 setPreviewData(null);
                 setShowBox2(true);
             } else {
+                setSelectedNode(node);
                 setShowBox2(false);
                 setShowBox4(false);
             }

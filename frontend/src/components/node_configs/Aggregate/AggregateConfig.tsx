@@ -42,12 +42,17 @@ const validationSchema = Yup.object().shape({
     ),
 });
 
+const defaultConfig: AggregateConfig = {
+    groupBy: [],
+    aggregations: [],
+};
+
 const AggregateConfig: React.FC<Props> = ({ config, onChange }) => {
 
     console.log("config", config);
     return (
         <Formik
-            initialValues={config}
+            initialValues={{ ...defaultConfig, ...config }}
             validationSchema={validationSchema}
             validateOnChange
             validateOnBlur
