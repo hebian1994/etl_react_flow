@@ -48,6 +48,7 @@ A powerful, visual ETL (Extract-Transform-Load) tool built with **React**, **Rea
 - **Framework:** React + TypeScript
 - **Visualization:** [React Flow](https://reactflow.dev/)
 - **UI Library:** [Material-UI (MUI)](https://mui.com/)
+- **Engine Library:** [Polars](https://github.com/pola-rs/polars)
 - **Core Components:**
   - `FlowList`: Dashboard for managing flows
   - `Designer`: Drag-and-drop interface for building flows
@@ -91,7 +92,7 @@ Schema  ──>  manages and validates data schema
 | Layer        | Technology                         |
 | ------------ | ---------------------------------- |
 | Frontend     | React, TypeScript, React Flow, MUI |
-| Backend      | Python, Flask, SQLAlchemy          |
+| Backend      | Polars, Python, Flask, SQLAlchemy          |
 | Database     | SQLite                             |
 | Architecture | REST API + DAG Executor            |
 
