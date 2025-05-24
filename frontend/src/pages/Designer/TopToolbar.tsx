@@ -1,7 +1,7 @@
 import { AppBar, Toolbar } from '@mui/material';
 import React from 'react';
-import FlowToolbarControls from '../../components/FlowToolbarControls';
-import NodeTypeSelector from '../../components/NodeTypeSelector';
+import FlowToolbarControls from '../../components/flow/FlowToolbarControls';
+import NodeTypeSelector from '../../components/nodes/NodeTypeSelector';
 
 const TopToolbar = ({
     setShowBox2,

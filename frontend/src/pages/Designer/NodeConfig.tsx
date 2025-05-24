@@ -13,7 +13,7 @@ import {
     Grid,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { NodeConfigComponentMap } from "../../components/NodeConfigMap";
+import { NodeConfigComponentMap } from "../../components/nodes/node_configs/NodeConfigMap";
 
 interface Props {
     selectedNode: { data: { type: string } } | null;

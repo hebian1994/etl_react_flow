@@ -21,10 +21,11 @@ import { v4 as uuidv4 } from 'uuid';
 import NodeDataPreview from './NodeDataPreview';
 import TopToolbar from './TopToolbar';
 import NodeConfig from './NodeConfig';
-import { CustomNode } from '../../components/CustomNode';
-import FileInputNode from '../../components/FileInputNode';
-import ContextMenu from '../../components/ContextMenu';
+
 import api from '../../utils/api';
+import { CustomNode } from '../../components/nodes/CustomNode';
+import FileInputNode from '../../components/nodes/FileInputNode';
+import ContextMenu from '../../components/flow/ContextMenu';
 
 
 

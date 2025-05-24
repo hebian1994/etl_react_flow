@@ -7,18 +7,20 @@ import {
     Tooltip,
     Divider
 } from '@mui/material';
-import { Folder, Shuffle, UploadCloud, BookOpen, Eye, Filter, GitMerge, Sigma } from 'lucide-react';
+import { Folder, Shuffle, UploadCloud, BookOpen, Eye, Filter, GitMerge, Sigma, FolderDown } from 'lucide-react';
 
 const groupedNodeTypes: Record<string, string[]> = {
-    '输入类': ['File Input'],
-    '转换类': ['Filter', 'Aggregate', 'Left Join'],
-    '输出类': ['Data Viewer'],
+    "所有": ["File Input", "Filter", "Aggregate", "Left Join", "Data Viewer"],
+    "输入类": ["File Input"],
+    "转换类": ["Filter", "Aggregate", "Left Join"],
+    "输出类": ["Data Viewer"],
 };
 
 const categoryIcons: Record<string, React.ReactNode> = {
-    '输入类': <UploadCloud size={18} />,
-    '转换类': <Shuffle size={18} />,
-    '输出类': <Folder size={18} />,
+    "所有": <Folder size={18} />,
+    "输入类": <UploadCloud size={18} />,
+    "转换类": <Shuffle size={18} />,
+    "输出类": <FolderDown size={18} />,
 };
 
 const getIcon = (type: string) => {

@@ -1,9 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import FlowList from './pages/FlowList';
+import FlowList from './pages/dashboard/FlowList';
 import Designer from './pages/Designer/Designer';
-import History from './pages/History';
-import Components from './pages/Components';
-import { Navbar } from './components/Navbar';
+import History from './pages/history/History';
+// import Components from './pages/components/Components';
+import { Navbar } from './components/dashboard/Navbar';
 import { Box } from '@mui/material';
 
 function AppContent() {
@@ -17,7 +17,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<FlowList />} />
           <Route path="/history" element={<History />} />
-          <Route path="/components" element={<Components />} />
+          {/* <Route path="/components" element={<Components />} /> */}
           <Route path="/flow/:flowId" element={<Designer />} />
         </Routes>
       </Box>
