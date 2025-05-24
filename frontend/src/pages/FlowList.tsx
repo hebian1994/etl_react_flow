@@ -67,7 +67,7 @@ export default function FlowList() {
           >
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                {flow.name || `流程 ${flow.id}`}
+                {flow.flowName || `流程 ${flow.id}`}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 节点数量: {flow.nodeCount}

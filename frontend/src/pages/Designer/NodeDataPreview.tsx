@@ -19,11 +19,12 @@ type PreviewDataType = {
 
 type NodeDataPreviewProps = {
     show: boolean;
+    setShow: React.Dispatch<React.SetStateAction<boolean>>;
     previewData: PreviewDataType | null;
     setPreviewData: React.Dispatch<React.SetStateAction<PreviewDataType | null>>;
 };
 
-const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ show, previewData, setPreviewData }) => {
+const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ show, setShow, previewData, setPreviewData }) => {
     if (!show) return null;
 
     const cols = previewData?.cols || [];
@@ -45,7 +46,10 @@ const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ show, previewData, se
                 <Typography variant="h6" component="div">
                     数据预览
                 </Typography>
-                <Button variant="outlined" color="secondary" onClick={() => setPreviewData(null)}>
+                <Button variant="outlined" color="secondary" onClick={() => {
+                    setPreviewData(null);
+                    setShow(false);
+                }}>
                     关闭
                 </Button>
             </Stack>

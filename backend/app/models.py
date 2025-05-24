@@ -13,7 +13,7 @@ class Flow(Base):
     __tablename__ = 'flows'
     flow_id = Column(String, primary_key=True)
     flow_data = Column(Text)
-
+    flow_name = Column(String)
 
 class NodeConfig(Base):
     __tablename__ = 'node_configs'

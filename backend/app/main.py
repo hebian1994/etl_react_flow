@@ -21,25 +21,34 @@ app = Flask(__name__)
 CORS(app)
 
 
-# Save Flow
-@app.route('/save_flow', methods=['POST'])
-def save_flow():
-    data = request.json
+def save_flow_to_db(data):
     with SessionLocal() as db:
         flow = db.query(Flow).filter(Flow.flow_id == data['flow_id']).first()
         print(f"flow: {flow}")
+        flow_name = data['flow_name']
         flow_json = json.dumps(data)
         print(f"flow_json: {flow_json}")
         if flow:
             flow.flow_data = flow_json
+            flow.flow_name = flow_name
             # 更新flow
             db.commit()
         else:
             print(f"flow_id: {data['flow_id']}")
-            flow = Flow(flow_id=data['flow_id'], flow_data=flow_json)
+            flow = Flow(flow_id=data['flow_id'],
+                        flow_data=flow_json, flow_name=flow_name)
             # 添加flow
             db.add(flow)
             db.commit()
+
+# Save Flow
+
+
+@app.route('/save_flow', methods=['POST'])
+def save_flow():
+    data = request.json
+    save_flow_to_db(data)
+
     return jsonify({'status': 'ok'})
 
 
@@ -84,7 +93,7 @@ def get_flows():
         flows = db.query(Flow).all()
         parsed_flows = [json.loads(flow.flow_data) for flow in flows]
         simple_flows = [{"id": f["flow_id"], "nodeCount": len(
-            f.get("nodes", []))} for f in parsed_flows]
+            f.get("nodes", [])), "flowName": f.get("flow_name", "")} for f in parsed_flows]
     return jsonify({'flows': simple_flows})
 
 # Get Single Flow
@@ -92,6 +101,7 @@ def get_flows():
 
 @app.route('/get_flow/<flow_id>')
 def get_flow(flow_id):
+    res = {}
     with SessionLocal() as db:
         flow = db.query(Flow).filter(Flow.flow_id == flow_id).first()
         if flow:
@@ -115,7 +125,10 @@ def get_flow(flow_id):
                 node_with_new_label.append(node)
             flow_data['nodes'] = node_with_new_label
 
-            return jsonify(flow_data)
+            res['flow_name'] = flow.flow_name
+            res['flow_data'] = flow_data
+
+            return jsonify(res)
     return jsonify({"error": "not found"}), 200
 
 
@@ -135,6 +148,8 @@ def save_node_config():
     node_schema = json.dumps(node_schema)
     print(f"configForm: {configForm}")
     print(f"node_schema: {node_schema}")
+
+    response = {}
 
     # 检查该节点的节点类型所需要的配置项是否都填好了
     with SessionLocal() as db:
@@ -204,22 +219,25 @@ def save_node_config():
             db.commit()
             print("All operations committed successfully.")
 
+            # 获取node_schema
+            response['status'] = 'ok'
+            node_schema = get_node_schema_from_db(flow_id, node_id)
+            response['node_schema'] = node_schema
+
+            # 获取preview_data
+            preview_data = get_preview_data(flow_id, node_id)
+            response['preview_data'] = preview_data
+
         except SQLAlchemyError as e:
             db.rollback()
             print(f"Transaction failed: {e}")
+            response['status'] = 'error'
+            response['message'] = str('system error')
 
-    return jsonify({"status": "saved"}), 200
-
-# Get Node Config
+    return jsonify(response), 200
 
 
-@app.route('/get_node_config', methods=['POST'])
-def get_node_config():
-    data = request.json
-    node_id = data.get('node_id')
-    if not node_id:
-        return jsonify({"error": "Missing node_id"}), 400
-
+def get_node_config_from_db(flow_id, node_id):
     with SessionLocal() as db:
         node = db.query(Node).filter(Node.id == node_id).first()
         if not node:
@@ -243,8 +261,19 @@ def get_node_config():
                     Node.id == node_id).first().type
                 if node_type == 'File Input':
                     config_dict['path'] = ''
+        return config_dict
 
-        return jsonify(config_dict)
+# Get Node Config
+
+
+@app.route('/get_node_config', methods=['POST'])
+def get_node_config():
+    data = request.json
+    node_id = data.get('node_id')
+    if not node_id:
+        return jsonify({"error": "Missing node_id"}), 400
+
+    return get_node_config_from_db(data['flow_id'], node_id)
 
 
 # Get Node Edges
@@ -363,6 +392,40 @@ def check_node_config_status():
                 return jsonify({"status": "ok", "node_config_status": node_config_status.first().config_status}), 200
 
 
+# handle node double click
+@app.route('/handle_node_double_click', methods=['POST'])
+def handle_node_double_click():
+    data = request.json
+    node_id = data.get('node_id')
+    res = {}
+    with SessionLocal() as db:
+        node = db.query(Node).filter(Node.id == node_id).first()
+        node_type = node.type
+        if node_type != 'File Input':
+            # 校验连线
+            edges = db.query(Dependency).filter(
+                Dependency.target == node_id).all()
+            if len(edges) == 0:
+                return jsonify({"status": "error", "error_code": "no_edges", "message": "请先建立连线"}), 200
+            elif node_type == 'Left Join':
+                if len(edges) < 2:
+                    return jsonify({"status": "error", "error_code": "left_join_not_enough_edges", "message": "Left Join节点需要至少2个连线"}), 200
+        # 获取节点的配置状态
+        node_config_status = db.query(NodeConfigStatus).filter(
+            NodeConfigStatus.node_id == node_id).first()
+        if node_config_status.config_status != 'ok':
+            return jsonify({"status": "error", "error_code": "node_config_not_ok", "message": "节点配置未完成"}), 200
+        res['status'] = 'ok'
+        # 获取节点的配置
+        res['node_config'] = get_node_config_from_db(data['flow_id'], node_id)
+        # 获取节点的schema
+        res['node_schema'] = get_node_schema_from_db(data['flow_id'], node_id)
+        # 获取preview_data,参照preview_data接口
+        res['preview_data'] = get_preview_data(data['flow_id'], node_id)
+
+        return jsonify(res)
+
+
 # Save Node
 
 
@@ -457,6 +520,10 @@ def get_node_schema():
     if not node_id:
         return jsonify({"error": "Missing node_id"}), 400
 
+    return get_node_schema_from_db(data['flow_id'], node_id)
+
+
+def get_node_schema_from_db(flow_id, node_id):
     with SessionLocal() as db:
         node_schema = db.query(NodeSchema).filter(
             NodeSchema.node_id == node_id).first()
@@ -467,7 +534,7 @@ def get_node_schema():
                 print(len(node_schema_dict))
                 print(f'get node schema from db')
                 print(f'node_schema: {node_schema_dict}')
-                return jsonify(node_schema_dict)
+                return node_schema_dict
 
     print(f'no node schema in db, infer from flowchart_data')
 
@@ -514,9 +581,56 @@ def get_node_schema():
             print("path is in node_config, infer schema from flowchart_data")
 
             schema_results = infer_schema_from_flowchart_data(
-                data['flow_id'], node_id)
+                flow_id=flow_id, node_id=node_id)
+        return schema_results
 
-    return jsonify(schema_results)
+
+def get_preview_data(flow_id, node_id):
+    # 如果没有定义node_schema，那么就从flowchart_data中推断
+    with SessionLocal() as db:
+        node_schema = db.query(NodeSchema).filter(
+            NodeSchema.node_id == node_id).first()
+        if not node_schema:
+            print(f'undefined node schema, unable to preview data')
+            return jsonify([])
+
+    from dag_util import build_flowchart_data, execute_dag
+
+    flowchart_data = build_flowchart_data(
+        flow_id=flow_id
+    )
+
+    res = execute_dag(
+        nodes=flowchart_data["nodes"],
+        edges=flowchart_data["edges"],
+        backend_name="polars",
+        target_node_id=node_id
+    )
+
+    print("flowchart_data", flowchart_data)
+    print("res", res)
+    if node_id in res:
+        # polars 的 head 方法返回的是一个 DataFrame
+        # 需要转换为字典列表
+        print(f"res[data['node_id']]: {res[node_id]}")
+        node_df = res[node_id]
+        res_data = node_df.head(5).to_dicts()
+        res_data_cols = node_df.columns
+        print(f"res_data: {res_data}")
+        response = {
+            "data": res_data,
+            "cols": res_data_cols
+        }
+    else:
+        print(f"{node_id} is not in res")
+        res_data = []
+        res_data_cols = []
+        response = {
+            "data": res_data,
+            "cols": res_data_cols
+        }
+
+    return response
 
 
 @app.route('/preview_data', methods=['POST'])
@@ -526,49 +640,7 @@ def preview_data():
     print(f"{data['node_id']}")
     print(f"{data}")
 
-    # 如果没有定义node_schema，那么就从flowchart_data中推断
-    with SessionLocal() as db:
-        node_schema = db.query(NodeSchema).filter(
-            NodeSchema.node_id == data['node_id']).first()
-        if not node_schema:
-            print(f'undefined node schema, unable to preview data')
-            return jsonify([])
-
-    from dag_util import build_flowchart_data, execute_dag
-
-    flowchart_data = build_flowchart_data(
-        flow_id=data['flow_id']
-    )
-
-    res = execute_dag(
-        nodes=flowchart_data["nodes"],
-        edges=flowchart_data["edges"],
-        backend_name="polars",
-        target_node_id=data['node_id']
-    )
-
-    print("flowchart_data", flowchart_data)
-    print("res", res)
-    if data['node_id'] in res:
-        # polars 的 head 方法返回的是一个 DataFrame
-        # 需要转换为字典列表
-        print(f"res[data['node_id']]: {res[data['node_id']]}")
-        node_df = res[data['node_id']]
-        res_data = node_df.head(5).to_dicts()
-        res_data_cols = node_df.columns
-        print(f"res_data: {res_data}")
-        response = {
-            "data": res_data,
-            "cols": res_data_cols
-        }
-    else:
-        print(f"{data['node_id']} is not in res")
-        res_data = []
-        res_data_cols = []
-        response = {
-            "data": res_data,
-            "cols": res_data_cols
-        }
+    response = get_preview_data(data['flow_id'], data['node_id'])
 
     # return jsonify({'status': 'ok'})
     return jsonify(response)

@@ -29,8 +29,6 @@ import api from '../../utils/api';
 
 
 
-const nodeTypes = ['File Input', 'Data Viewer', 'Filter', 'Aggregate', 'Left Join'];
-
 const CustomNodeTypes = {
     custom: CustomNode,
     fileInput: FileInputNode,
@@ -58,7 +56,7 @@ const Designer: React.FC = () => {
         data: Array<Record<string, any>>;
     } | null>(null);
 
-
+    const [flowName, setFlowName] = useState<string>('');
 
     // 加载流程初始数据
     useEffect(() => {
@@ -68,8 +66,9 @@ const Designer: React.FC = () => {
         const fetchFlow = async () => {
             const res = await api.get(`/get_flow/${flowId}`);
             console.log('res', res.data);
-            if (res.data.nodes) setNodes(res.data.nodes);
-            if (res.data.edges) setEdges(res.data.edges);
+            if (res.data.flow_data.nodes) setNodes(res.data.flow_data.nodes);
+            if (res.data.flow_data.edges) setEdges(res.data.flow_data.edges);
+            if (res.data.flow_name) setFlowName(res.data.flow_name);
         };
         fetchFlow();
     }, [flowId]);
@@ -85,86 +84,39 @@ const Designer: React.FC = () => {
 
         setSelectedNode(node);
 
-        // 如果该节点的类型不是File Input，那么他肯定要有前置节点，也就是必须有它作为target的边，否则弹出提示先建立连线
-        // 要先确有连线      
-        if (node.data.type !== 'File Input') {
-            console.log('edges', edges);
-            // 直接去后端查该节点的连线是否满足要求
-            const res = await api.post(`/get_node_edges`, {
-                flow_id: flowId,
-                node_id: node.id,
-            });
-            console.log('res', res.data);
-            // 如果res.data.edges.length为0，说明该节点没有连线，那么弹出提示先建立连线
-            if (res.data.edges.length === 0) {
-                alert('请先建立连线');
-                // 
+
+        // 获取节点详情（包括连线、配置状态、config/schema/data）
+        const response = await api.post(`/handle_node_double_click`, payload);
+        console.log("response", response.data);
+        const res_status = response.data.status;
+        if (res_status === 'error') {
+            alert(response.data.message);
+            if (response.data.error_code === 'node_config_not_ok') {
+                setConfigForm({});
+                setNodeSchema([]);
+                setPreviewData(null);
+                setShowBox2(true);
+            } else {
                 setShowBox2(false);
                 setShowBox4(false);
-                return;
-            } else {
-                // 如果res.data.edges.length不为0，说明该节点有连线，那么就继续
-                // 还要检查是否有该节点作为target的
-                const targetEdges = res.data.edges.filter((e: any) => e.target === node.id);
-                if (targetEdges.length === 0) {
-                    alert('请先建立连线');
-                    setShowBox2(false);
-                    setShowBox4(false);
-                    return;
-                } else if (node.data.type === 'Left Join') {
-                    // 如果该节点是Left Join,那么他作为target的连线数量必须大于1    
-                    if (targetEdges.length < 2) {
-                        alert('Left Join节点需要至少2个连线');
-                        setShowBox2(false);
-                        setShowBox4(false);
-                        return;
-                    }
-                }
             }
-        }
-
-
-        // 查看该节点是否允许双击来查看配置栏和schema和preview_data
-        // 查询该节点的node_config_status
-        const node_config_status = await api.post(`/check_node_config_status`, {
-            flow_id: flowId,
-            node_id: node.id,
-        });
-        console.log("node_config_status", node_config_status.data);
-        if (node_config_status.data.status !== 'ok') {
-            // 说明该节点还没有完成配置，那么只需要弹出配置栏就行了，而不需要get_node_config和get_node_schema和preview_data
-            setConfigForm({});
-            setNodeSchema([]);
-            setPreviewData(null);
-            setShowBox2(true);
             return;
         }
 
+        const {
+            node_config,
+            node_schema,
+            preview_data
+        } = response.data;
 
-        // should send request to get config @app.route('/get_node_config', methods=['POST'])
-        const node_config = await api.post(`/get_node_config`, payload);
-        console.log("node_config", node_config.data);
-        setConfigForm(node_config.data || {});
-
-        // should send request to get node schema @app.route('/get_node_schema', methods=['POST'])
-        const node_schema = await api.post(`/get_node_schema`, payload);
-        console.log("node_schema", node_schema.data);
-        setNodeSchema(node_schema.data);
-
-        // 如果有 dataPreview 数据，展示底部面板
-        const res = await api.post(`/preview_data`, payload);
-        console.log("res.data", res.data);
-
+        // 如果配置完成，展示 config/schema/preview
+        setConfigForm(node_config || {});
+        setNodeSchema(node_schema || []);
+        setPreviewData(preview_data?.data?.length > 0 ? preview_data : null);
 
         setShowBox2(true);
+        setShowBox4(preview_data?.data?.length > 0);
 
-
-        if (res.data.data.length > 0) {
-            setShowBox4(true);
-            setPreviewData(res.data);
-        } else {
-            setPreviewData(null);
-        }
     }, []);
 
 
@@ -180,36 +132,25 @@ const Designer: React.FC = () => {
             flow_id: flowId,
             node_id: selectedNode.id,
             config: { configForm: configForm, node_schema: nodeSchema },
+            flow_data: { nodes: nodes, edges: edges },
         };
 
         console.log("save_config_payload", save_config_payload);
 
         try {
-            // 先保存整个flow，这样推断类型的时候才能构建DAG
-            await api.post(`/save_flow`, {
-                flow_id: flowId,
-                nodes,
-                edges,
-            });
 
             // 保存节点配置
-            await api.post(`/save_node_config`, save_config_payload);
+            const res_save_node_config = await api.post(`/save_node_config`, save_config_payload);
             alert('配置保存成功');
 
             // 如果节点的配置保存成功，说明节点的schema已经更新了，那么就更新本地节点数据
-            const node_schema = await api.post(`/get_node_schema`, {
-                flow_id: flowId,
-                node_id: selectedNode.id,
-            });
-            setNodeSchema(node_schema.data);
-            console.log("node_schema", node_schema.data);
+            const node_schema = res_save_node_config.data.node_schema;
+            setNodeSchema(node_schema);
+            console.log("node_schema", node_schema);
 
             // 如果节点的配置保存成功，说明节点的preview_data已经更新了，那么就更新本地节点数据
-            const res = await api.post(`/preview_data`, {
-                flow_id: flowId,
-                node_id: selectedNode.id,
-            });
-            setPreviewData(res.data);
+            const preview_data = res_save_node_config.data.preview_data;
+            setPreviewData(preview_data);
             setShowBox4(true);
 
             // 同时更新本地节点数据
@@ -282,6 +223,7 @@ const Designer: React.FC = () => {
             // 保存flow
             await api.post(`/save_flow`, {
                 flow_id: flowId,
+                flow_name: flowName,
                 nodes,
                 edges,
             });
@@ -310,6 +252,7 @@ const Designer: React.FC = () => {
                 // 同步保存 flow，带上当前 nodes 和最新连线
                 api.post(`/save_flow`, {
                     flow_id: flowId,
+                    flow_name: flowName,
                     nodes,
                     edges: updated,
                 });
@@ -339,6 +282,7 @@ const Designer: React.FC = () => {
         // 同时也保存flow
         await api.post(`/save_flow`, {
             flow_id: flowId,
+            flow_name: flowName,
             nodes,
             edges,
         });
@@ -373,6 +317,7 @@ const Designer: React.FC = () => {
         // 保存 flow（用新的 edges）
         await api.post(`/save_flow`, {
             flow_id: flowId,
+            flow_name: flowName,
             nodes,
             edges: newEdges,
         });
@@ -414,6 +359,7 @@ const Designer: React.FC = () => {
     const handleSave = async () => {
         await api.post(`/save_flow`, {
             flow_id: flowId,
+            flow_name: flowName,
             nodes,
             edges,
         });
@@ -425,10 +371,11 @@ const Designer: React.FC = () => {
         <div className="container">
             {/* 顶部栏 - 框1 */}
             <TopToolbar
-                nodeTypes={nodeTypes}
                 setShowBox2={setShowBox2}
                 setShowBox4={setShowBox4}
                 handleSave={handleSave}
+                flowName={flowName} // 从flow_name表中获取
+                setFlowName={setFlowName}
             />
 
 
@@ -524,6 +471,7 @@ const Designer: React.FC = () => {
             {/* 框4 - 底部固定栏 */}
             <NodeDataPreview
                 show={showBox4}
+                setShow={setShowBox4}
                 previewData={previewData}
                 setPreviewData={setPreviewData}
             />
