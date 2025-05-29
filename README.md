@@ -10,6 +10,8 @@ A powerful, visual ETL (Extract-Transform-Load) tool built with **React**, **Rea
 
 > ![Designer页面](doc/pic/Designer0522.png)
 > ![Dashboard页面](doc/pic/Dashboard0522.png)
+## 📸 Structure
+![structure页面](doc/pic/structure.svg)
 
 
 ------
